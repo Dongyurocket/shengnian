@@ -26,4 +26,13 @@ interface TodoDao {
 
     @Query("SELECT COUNT(*) FROM todos WHERE sourceNoteId = :noteId AND done = 0")
     fun observeOpenCountForNote(noteId: Long): Flow<Int>
+
+    @Query("DELETE FROM todos WHERE id = :id")
+    suspend fun deleteById(id: Long)
+
+    @Query("UPDATE todos SET deadline = :deadline, remindLeadMinutes = :lead, remindAt = :remindAt WHERE id = :id")
+    suspend fun updateSchedule(id: Long, deadline: Long?, lead: Int, remindAt: Long?)
+
+    @Query("SELECT * FROM todos WHERE done = 0 AND remindAt IS NOT NULL")
+    suspend fun pendingReminders(): List<TodoEntity>
 }

@@ -22,7 +22,8 @@ object Prompts {
   "type": "灵感|总结|摘录|待研究|日记 之一",
   "mood": "积极|中立|消极",
   "tags": ["3-5个精准关键词"],
-  "summary": "一句话摘要"
+  "summary": "一句话摘要",
+  "todos": ["从正文中提炼出的可执行待办，0-3条，纯内容字符串，无则省略该字段"]
 }
 意图 B：待办/计划/提醒 → 输出：
 {
@@ -60,6 +61,7 @@ object Prompts {
             putJsonObject("mood") { put("type", "string") }
             putJsonArray("tags") {}
             putJsonObject("summary") { put("type", "string") }
+            putJsonObject("todos") { putJsonArray("items") {} }
             putJsonObject("priority") { put("type", "integer") }
             putJsonObject("deadline") { put("type", "string") }
             putJsonObject("remind_lead_minutes") { put("type", "integer") }

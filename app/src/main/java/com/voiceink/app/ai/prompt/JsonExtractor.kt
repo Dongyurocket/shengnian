@@ -46,7 +46,12 @@ object JsonExtractor {
                     ?.mapNotNull { it.jsonPrimitive.contentOrNull }
                     ?.filter { it.isNotBlank() }
                     ?: emptyList(),
-                summary = o["summary"]?.jsonPrimitive?.contentOrNull
+                summary = o["summary"]?.jsonPrimitive?.contentOrNull,
+                todos = o["todos"]?.jsonArray
+                    ?.mapNotNull { it.jsonPrimitive.contentOrNull }
+                    ?.map { it.trim() }
+                    ?.filter { it.isNotBlank() }
+                    ?: emptyList()
             )
             else -> ParsedIntent.Unparseable
         }

@@ -94,9 +94,11 @@ class AiPipeline @Inject constructor(
 
         return when (val parsed = JsonExtractor.extractIntent(result.text)) {
             is ParsedIntent.Todo -> {
-                val todoId = todos.insertFrom(parsed, sourceNoteId = noteId)
+                // 原始输入迁移进 todo.content，笔记不保留，故 sourceNoteId 置空（避免死链）；
+                // 笔记提炼的待办才带 sourceNoteId 回溯（见 Note 分支）
+                val todoId = todos.insertFrom(parsed, sourceNoteId = null)
                 todos.byId(todoId)?.remindAt?.let { reminder.schedule(todoId, it) }
-                notes.delete(noteId)   // 原始输入迁移进 todo.content，笔记不重复留存
+                notes.delete(noteId)
                 Outcome.Done
             }
             is ParsedIntent.Note -> {
@@ -104,6 +106,13 @@ class AiPipeline @Inject constructor(
                     noteId,
                     parsed.copy(content = parsed.content.ifBlank { note.content })
                 )
+                // 笔记中提炼出的待办：保留笔记，待办以 sourceNoteId 回溯（§11.3）
+                parsed.todos.forEach { content ->
+                    todos.insertFrom(
+                        ParsedIntent.Todo(content, priority = 1, deadline = null, remindLeadMinutes = null),
+                        sourceNoteId = noteId
+                    )
+                }
                 // 关联发现 LinkDiscovery 在阶段 5 接入
                 Outcome.Done
             }

@@ -19,8 +19,19 @@ class TodoRepository @Inject constructor(
 
     suspend fun setDone(id: Long, done: Boolean) = todoDao.setDone(id, done)
 
-    /** 从 AI 解析结果建待办：remindAt = deadline - 提前量（用户未指定用默认） */
-    suspend fun insertFrom(parsed: ParsedIntent.Todo, sourceNoteId: Long): Long {
+    suspend fun delete(id: Long) = todoDao.deleteById(id)
+
+    /** 修改截止时间/提前量：重算 remindAt */
+    suspend fun updateSchedule(id: Long, deadline: Long?, lead: Int) {
+        val remindAt = deadline?.let { it - lead * 60_000L }
+        todoDao.updateSchedule(id, deadline, lead, remindAt)
+    }
+
+    /** 开机重排数据源（§10 BootReceiver） */
+    suspend fun pendingReminders(): List<TodoEntity> = todoDao.pendingReminders()
+
+    /** 从 AI 解析结果建待办：remindAt = deadline - 提前量（用户未指定用默认）。sourceNoteId 可空。 */
+    suspend fun insertFrom(parsed: ParsedIntent.Todo, sourceNoteId: Long?): Long {
         val lead = parsed.remindLeadMinutes ?: settings.remindLeadMinutes.first()
         val remindAt = parsed.deadline
             ?.let { it - lead * 60_000L }

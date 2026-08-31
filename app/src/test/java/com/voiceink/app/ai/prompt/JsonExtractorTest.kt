@@ -73,4 +73,12 @@ class JsonExtractorTest {
         assertTrue(r is ParsedIntent.Todo)
         assertNull((r as ParsedIntent.Todo).deadline)
     }
+
+    @Test
+    fun `笔记意图可提炼待办`() {
+        val raw = """{"intent":"note","title":"t","content":"c","todos":["关掉实验分支","回复授权邮件"]}"""
+        val r = JsonExtractor.extractIntent(raw)
+        assertTrue(r is ParsedIntent.Note)
+        assertEquals(listOf("关掉实验分支", "回复授权邮件"), (r as ParsedIntent.Note).todos)
+    }
 }

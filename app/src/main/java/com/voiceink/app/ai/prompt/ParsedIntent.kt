@@ -9,7 +9,8 @@ sealed interface ParsedIntent {
         val type: String?,
         val mood: String?,
         val tags: List<String>,
-        val summary: String?
+        val summary: String?,
+        val todos: List<String> = emptyList()   // 从笔记中提炼的待办（§11.3 详情页一键加入）
     ) : ParsedIntent
 
     data class Todo(
