@@ -232,17 +232,21 @@ class HomeViewModel @Inject constructor(
         _actionMessage.value = null
     }
 
-    fun mergeSelected() {
+    fun mergeSelected(deleteOriginals: Boolean = false) {
         if (_merging.value) return
         val ids = selection.value.toList()
         if (ids.size < 2) return
         viewModelScope.launch {
             _merging.value = true
             try {
-                mergeController.merge(ids)
+                mergeController.merge(ids, deleteOriginals)
                 selection.value = emptySet()
                 selecting.value = false
-                _actionMessage.value = "已创建合并笔记，AI 整理中…"
+                _actionMessage.value = if (deleteOriginals) {
+                    "已创建合并笔记，AI 整理中；原笔记已删除"
+                } else {
+                    "已创建合并笔记，AI 整理中…"
+                }
             } catch (error: kotlinx.coroutines.CancellationException) {
                 throw error
             } catch (error: Exception) {

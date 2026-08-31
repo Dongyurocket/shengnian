@@ -121,6 +121,7 @@ class AiPipeline @Inject constructor(
                         if (keepAsNote) {
                             append("\n此次是对已有笔记的重新整理，必须输出 intent=note，不要把整条笔记转换成 todo。")
                         }
+                        inspirationHint(note.intentHint)?.let { append("\n$it") }
                     },
                     user = buildString {
                         append("当前时间：").append(TimeUtils.nowString()).append('\n')
@@ -206,7 +207,14 @@ class AiPipeline @Inject constructor(
                 }
             }
             is ParsedIntent.Note -> {
-                val organized = parsed.copy(content = parsed.content.ifBlank { rawContent })
+                val organized = parsed.copy(
+                    content = parsed.content.ifBlank { rawContent },
+                    isInspiration = when (note.intentHint) {
+                        "note" -> true
+                        "note_plain" -> false
+                        else -> parsed.isInspiration
+                    }
+                )
                 if (!notes.applyOrganization(noteId, organized, expected = note)) return Outcome.Done
                 // 笔记中提炼出的待办：保留笔记，待办以 sourceNoteId 回溯（§11.3）
                 clearOpenExtractedTodos(noteId)

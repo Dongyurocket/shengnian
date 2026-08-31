@@ -22,17 +22,34 @@ class NoteMergeController @Inject constructor(
     private val notes: NoteRepository,
     private val capture: CaptureController
 ) {
-    suspend fun merge(ids: List<Long>): Long {
+    suspend fun merge(ids: List<Long>, deleteOriginals: Boolean = false): Long {
         val uniqueIds = ids.distinct()
         require(uniqueIds.size >= 2) { "至少选择两条笔记" }
         val selected = uniqueIds.mapNotNull { notes.byId(it) }
             .filter { it.status == NoteStatus.READY }
         require(selected.size >= 2) { "只能合并已整理完成的笔记" }
-        return capture.capture(
+        val mergedId = capture.capture(
             text = buildMergePrompt(selected),
             source = "merge",
             intentHint = "merge"
         )
+        if (deleteOriginals) {
+            // 合并结果已创建；原笔记删除失败不阻断合并成功，逐条容错并把失败数交给调用方。
+            var failed = 0
+            selected.forEach { note ->
+                try {
+                    notes.delete(note.id)
+                } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                    throw cancelled
+                } catch (_: Exception) {
+                    failed++
+                }
+            }
+            if (failed > 0) {
+                throw IllegalStateException("合并成功，但有 $failed 条原笔记未能删除")
+            }
+        }
+        return mergedId
     }
 
     companion object {

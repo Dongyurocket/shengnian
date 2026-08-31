@@ -30,6 +30,7 @@ import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
@@ -100,9 +101,18 @@ fun HomeScreen(
     val allNotes by vm.allNotes.collectAsStateWithLifecycle()
     var showFilters by remember { mutableStateOf(false) }
     var showMergeConfirm by androidx.compose.runtime.remember { mutableStateOf(false) }
+    var deleteOriginals by androidx.compose.runtime.remember { mutableStateOf(false) }
     var deleteNote by androidx.compose.runtime.remember { mutableStateOf<NoteEntity?>(null) }
     var categoryNote by androidx.compose.runtime.remember { mutableStateOf<NoteEntity?>(null) }
     var lifecycleNote by androidx.compose.runtime.remember { mutableStateOf<NoteEntity?>(null) }
+
+    // 操作提示自动消失，避免“已删除笔记”等文案一直停留在列表顶部。
+    androidx.compose.runtime.LaunchedEffect(actionMessage) {
+        if (actionMessage != null) {
+            kotlinx.coroutines.delay(3000)
+            vm.clearActionMessage()
+        }
+    }
 
     LazyColumn(
         modifier = Modifier
@@ -223,19 +233,38 @@ fun HomeScreen(
             onDismissRequest = { showMergeConfirm = false },
             title = { Text("合并选中的笔记") },
             text = {
-                Text(
-                    "将 ${selectedIds.size} 条已整理笔记交给 AI 汇总，并创建一条新的笔记。原笔记不会被删除。",
-                    fontSize = 13.sp
-                )
+                Column {
+                    Text(
+                        "将 ${selectedIds.size} 条已整理笔记交给 AI 汇总，并创建一条新的笔记。",
+                        fontSize = 13.sp
+                    )
+                    Spacer(Modifier.height(10.dp))
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.clickable { deleteOriginals = !deleteOriginals }
+                    ) {
+                        Checkbox(
+                            checked = deleteOriginals,
+                            onCheckedChange = { deleteOriginals = it }
+                        )
+                        Text("合并完成后删除原笔记", fontSize = 13.sp, color = Ink)
+                    }
+                    Text(
+                        if (deleteOriginals) "删除后原笔记正文、附件和关联将被移除，其提炼的待办保留。"
+                        else "默认保留原笔记；勾选后再删除。",
+                        fontSize = 11.sp, color = Faint
+                    )
+                }
             },
             confirmButton = {
                 TextButton(onClick = {
                     showMergeConfirm = false
-                    vm.mergeSelected()
+                    vm.mergeSelected(deleteOriginals)
+                    deleteOriginals = false
                 }, enabled = !merging) { Text(if (merging) "合并中…" else "开始合并", color = if (merging) Faint else Accent) }
             },
             dismissButton = {
-                TextButton(onClick = { showMergeConfirm = false }) { Text("取消", color = Muted) }
+                TextButton(onClick = { showMergeConfirm = false; deleteOriginals = false }) { Text("取消", color = Muted) }
             }
         )
     }

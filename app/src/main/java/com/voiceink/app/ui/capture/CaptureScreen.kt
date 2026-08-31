@@ -7,6 +7,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -23,6 +24,7 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.Image
+import androidx.compose.material.icons.outlined.Star
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -55,6 +57,7 @@ import com.voiceink.app.ui.theme.Accent12
 import com.voiceink.app.ui.theme.Faint
 import com.voiceink.app.ui.theme.Muted
 import com.voiceink.app.ui.theme.Paper
+import com.voiceink.app.ui.theme.Paper2
 import com.voiceink.app.ui.theme.VoiceInkRadius
 import com.voiceink.app.ui.theme.VoiceInkTextStyles
 
@@ -72,6 +75,7 @@ fun CaptureScreen(
     val focusRequester = remember { FocusRequester() }
     val keyboard = LocalSoftwareKeyboardController.current
     val todoMode = mode == "todo"
+    var inspirationChoice by remember { mutableStateOf(InspirationChoice.AUTO) }
     val imagePicker = rememberLauncherForActivityResult(
         ActivityResultContracts.PickMultipleVisualMedia(4)
     ) { uris -> vm.addImages(uris) }
@@ -139,7 +143,7 @@ fun CaptureScreen(
                     fontWeight = FontWeight.SemiBold,
                     modifier = Modifier
                         .clickable(enabled = canSave) {
-                            vm.saveAndContinue(if (todoMode) "todo" else null)
+                            vm.saveAndContinue(if (todoMode) "todo" else inspirationChoice.hint)
                         }
                         .padding(vertical = 6.dp)
                 )
@@ -180,7 +184,7 @@ fun CaptureScreen(
                     .focusRequester(focusRequester)
                     .onPreviewKeyEvent { event ->
                         if (event.type == KeyEventType.KeyDown && event.key == Key.Enter && event.isCtrlPressed) {
-                            vm.saveAndContinue(if (todoMode) "todo" else null)
+                            vm.saveAndContinue(if (todoMode) "todo" else inspirationChoice.hint)
                             true
                         } else false
                     },
@@ -194,6 +198,44 @@ fun CaptureScreen(
                     inner()
                 }
             )
+
+            // 灵感标记分流：自动 / 灵感 / 非灵感
+            if (!todoMode) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 12.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.Star,
+                        contentDescription = null,
+                        tint = if (inspirationChoice != InspirationChoice.AUTO) Accent else Faint,
+                        modifier = Modifier.size(13.dp)
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Text("标记为", fontSize = 11.sp, color = Muted)
+                    Spacer(Modifier.width(8.dp))
+                    InspirationChoice.entries.forEach { choice ->
+                        val selected = inspirationChoice == choice
+                        Box(
+                            contentAlignment = Alignment.Center,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(VoiceInkRadius.Chip))
+                                .background(if (selected) Accent12 else Paper2)
+                                .clickable { inspirationChoice = choice }
+                                .padding(horizontal = 10.dp, vertical = 5.dp)
+                        ) {
+                            Text(
+                                text = choice.label,
+                                style = VoiceInkTextStyles.Chip,
+                                color = if (selected) Accent else Muted
+                            )
+                        }
+                        Spacer(Modifier.width(6.dp))
+                    }
+                }
+            }
 
             // AI 提示条（常驻）
             Row(
@@ -228,5 +270,12 @@ fun CaptureScreen(
             }
         }
     }
+}
+
+/** 速记页灵感标记意图：自动判断不传 hint，显式标记传入对应 intentHint。 */
+private enum class InspirationChoice(val label: String, val hint: String?) {
+    AUTO("自动", null),
+    INSPIRATION("灵感", "note"),
+    PLAIN("非灵感", "note_plain")
 }
 
