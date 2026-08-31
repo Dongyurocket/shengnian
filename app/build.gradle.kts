@@ -24,8 +24,8 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         minSdk = 24
         targetSdk = 35
-        versionCode = 7
-        versionName = "0.5.0"
+        versionCode = 8
+        versionName = "0.5.1"
     }
 
     buildFeatures {
@@ -42,6 +42,12 @@ android {
                 keyPassword = localProps.getProperty("keyPassword")
             }
         }
+    }
+
+    lint {
+        // Kotlin 2.0 test UAST analysis crashes in this AGP/Lint toolchain;
+        // unit and instrumentation tests remain covered by their Gradle tasks.
+        checkTestSources = false
     }
 
     buildTypes {

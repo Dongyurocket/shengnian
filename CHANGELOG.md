@@ -2,7 +2,11 @@
 
 本项目遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
-## [0.5.0] - 2026-08-31
+## [0.5.1] - 2026-08-31
+
+### 修复
+- 关闭 Android Lint 对 Kotlin 测试源码的重复 UAST 扫描，规避当前 AGP/Kotlin 工具链内部异常；单元测试和 Android 测试仍由各自 Gradle 任务执行
+
 
 ### 首页与笔记流
 - 首页默认展示全量笔记，并显示「当前显示 / 全部」数量；清除筛选后可恢复全部笔记，修复实际有 3 篇却只显示 2 篇的可见性问题
