@@ -5,6 +5,7 @@ import com.voiceink.app.data.local.dao.TodoDao
 import com.voiceink.app.data.local.entity.TodoEntity
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -29,6 +30,11 @@ class TodoRepository @Inject constructor(
 
     /** 开机重排数据源（§10 BootReceiver） */
     suspend fun pendingReminders(): List<TodoEntity> = todoDao.pendingReminders()
+
+    fun observeForNote(noteId: Long): Flow<List<TodoEntity>> = todoDao.observeForNote(noteId)
+
+    fun observeOpenCountsPerNote(): Flow<Map<Long, Int>> =
+        todoDao.observeOpenCountsPerNote().map { list -> list.associate { it.noteId to it.openCount } }
 
     /** 从 AI 解析结果建待办：remindAt = deadline - 提前量（用户未指定用默认）。sourceNoteId 可空。 */
     suspend fun insertFrom(parsed: ParsedIntent.Todo, sourceNoteId: Long?): Long {

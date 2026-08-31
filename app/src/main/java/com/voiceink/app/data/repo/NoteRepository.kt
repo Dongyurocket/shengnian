@@ -22,7 +22,21 @@ class NoteRepository @Inject constructor(
     suspend fun insertRaw(content: String, source: String = "app", intentHint: String? = null): Long =
         noteDao.insert(NoteEntity(content = content, source = source, intentHint = intentHint))
 
-    fun observe(category: String?): Flow<List<NoteEntity>> = noteDao.observeFiltered(category)
+    fun observe(category: String?, tag: String? = null, keyword: String? = null): Flow<List<NoteEntity>> =
+        noteDao.observeFiltered(category, tag, keyword?.takeIf { it.isNotBlank() })
+
+    fun observeById(id: Long): Flow<NoteEntity?> = noteDao.observeById(id)
+
+    suspend fun resetToPending(id: Long) = noteDao.resetToPending(id)
+
+    /** 用户手动改分类：同步更新分类体系 usageCount（§4.2） */
+    suspend fun updateCategory(id: Long, category: String?) {
+        noteDao.updateCategory(id, category)
+        category?.takeIf { it.isNotBlank() }?.let {
+            categoryDao.insertIfAbsent(CategoryEntity(it, kind = "theme"))
+            categoryDao.bumpUsage(it)
+        }
+    }
 
     fun categories(): Flow<List<String>> = noteDao.observeCategories()
 

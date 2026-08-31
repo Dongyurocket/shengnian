@@ -43,6 +43,8 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import androidx.navigation.navDeepLink
+import androidx.navigation.NavType
+import com.voiceink.app.ui.detail.NoteDetailScreen
 import com.voiceink.app.ui.capture.CaptureScreen
 import com.voiceink.app.ui.home.HomeScreen
 import com.voiceink.app.ui.insights.InsightsScreen
@@ -99,10 +101,12 @@ fun AppNavHost() {
                 composable(Routes.Home) {
                     HomeScreen(
                         onOpenSettings = { navController.navigate(Routes.Settings) },
-                        onOpenNote = { /* 笔记详情在阶段 4 接入 */ }
+                        onOpenNote = { id -> navController.navigate("detail/$id") }
                     )
                 }
-                composable(Routes.Todo) { TodoScreen() }
+                composable(Routes.Todo) {
+                    TodoScreen(onOpenNote = { id -> navController.navigate("detail/$id") })
+                }
                 composable(Routes.Insights) { InsightsScreen() }
                 composable(
                     route = Routes.Capture + "?mode={mode}",
@@ -120,6 +124,12 @@ fun AppNavHost() {
                         mode = entry.arguments?.getString("mode"),
                         onDone = { navController.popBackStack() }
                     )
+                }
+                composable(
+                    route = "detail/{noteId}",
+                    arguments = listOf(navArgument("noteId") { type = NavType.LongType })
+                ) {
+                    NoteDetailScreen(onBack = { navController.popBackStack() })
                 }
                 composable(Routes.Settings) {
                     SettingsScreen(onBack = { navController.popBackStack() })

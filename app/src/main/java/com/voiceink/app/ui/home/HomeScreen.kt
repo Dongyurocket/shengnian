@@ -7,6 +7,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -21,7 +22,9 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.CheckBox
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -31,6 +34,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -49,13 +53,15 @@ import com.voiceink.app.ui.theme.Line
 import com.voiceink.app.ui.theme.Muted
 import com.voiceink.app.ui.theme.Paper
 import com.voiceink.app.ui.theme.Paper2
+import com.voiceink.app.ui.theme.SerifFamily
 import com.voiceink.app.ui.theme.SurfaceCard
 import com.voiceink.app.ui.theme.VoiceInkRadius
 import com.voiceink.app.ui.theme.VoiceInkTextStyles
 
 /**
  * 屏 01 首页 · 灵感笔记流。
- * 阶段 1：仅原文展示；PENDING_AI 的笔记以原文前 40 字为临时标题并带「整理中」角标。
+ * PENDING_AI 笔记以原文前 40 字为临时标题并带「整理中」角标；
+ * AI_FAILED 带「整理失败 · 点击重试」角标（§4.3）。
  */
 @Composable
 fun HomeScreen(
@@ -66,18 +72,18 @@ fun HomeScreen(
     val notes by vm.notes.collectAsStateWithLifecycle()
     val categories by vm.categories.collectAsStateWithLifecycle()
     val selected by vm.selected.collectAsStateWithLifecycle()
+    val keyword by vm.keywordState.collectAsStateWithLifecycle()
+    val todoCounts by vm.todoCounts.collectAsStateWithLifecycle()
 
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
             .background(Paper)
             .statusBarsPadding(),
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(
-            start = 18.dp, end = 18.dp, top = 6.dp, bottom = 180.dp
-        )
+        contentPadding = PaddingValues(start = 18.dp, end = 18.dp, top = 6.dp, bottom = 180.dp)
     ) {
         item { BrandRow(onOpenSettings) }
-        item { SearchBox() }
+        item { SearchBox(keyword, vm::setKeyword) }
         item {
             FilterChips(
                 categories = categories,
@@ -88,14 +94,19 @@ fun HomeScreen(
         }
 
         if (notes.isEmpty()) {
-            item { EmptyHint() }
+            item { EmptyHint(searching = keyword.isNotBlank() || selected != null) }
         } else {
             val grouped = notes.groupBy { TimeUtils.dayLabel(it.createdAt) }
             for (label in listOf("今天", "昨天", "更早")) {
                 val dayNotes = grouped[label] ?: continue
                 item { SectionLabel(label) }
                 items(dayNotes, key = { it.id }) { note ->
-                    NoteCard(note = note, onClick = { onOpenNote(note.id) })
+                    NoteCard(
+                        note = note,
+                        openTodos = todoCounts[note.id] ?: 0,
+                        onClick = { onOpenNote(note.id) },
+                        onRetry = { vm.retryOrganize(note.id) }
+                    )
                     Spacer(Modifier.height(11.dp))
                 }
             }
@@ -117,7 +128,6 @@ private fun BrandRow(onOpenSettings: () -> Unit) {
             Spacer(Modifier.height(6.dp))
             Text("声落成章，念起成行", style = VoiceInkTextStyles.BrandSlogan)
         }
-        // 右上角「念」头像 → 设置页
         Box(
             contentAlignment = Alignment.Center,
             modifier = Modifier
@@ -129,7 +139,7 @@ private fun BrandRow(onOpenSettings: () -> Unit) {
         ) {
             Text(
                 "念",
-                fontFamily = com.voiceink.app.ui.theme.SerifFamily,
+                fontFamily = SerifFamily,
                 fontSize = 14.sp,
                 fontWeight = FontWeight.SemiBold,
                 color = Accent
@@ -138,8 +148,9 @@ private fun BrandRow(onOpenSettings: () -> Unit) {
     }
 }
 
+/** 搜索框（§4.1：可输入关键词，匹配标题/正文/标签） */
 @Composable
-private fun SearchBox() {
+private fun SearchBox(keyword: String, onChange: (String) -> Unit) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
@@ -157,7 +168,20 @@ private fun SearchBox() {
             modifier = Modifier.size(16.dp)
         )
         Spacer(Modifier.width(8.dp))
-        Text("搜索灵感、标签或待办", fontSize = 13.5.sp, color = Faint)
+        BasicTextField(
+            value = keyword,
+            onValueChange = onChange,
+            singleLine = true,
+            textStyle = androidx.compose.ui.text.TextStyle(fontSize = 13.5.sp, color = Ink),
+            cursorBrush = SolidColor(Accent),
+            modifier = Modifier.fillMaxWidth(),
+            decorationBox = { inner ->
+                if (keyword.isEmpty()) {
+                    Text("搜索灵感、标签或待办", fontSize = 13.5.sp, color = Faint)
+                }
+                inner()
+            }
+        )
     }
 }
 
@@ -215,7 +239,12 @@ private fun SectionLabel(text: String) {
 }
 
 @Composable
-private fun NoteCard(note: NoteEntity, onClick: () -> Unit) {
+private fun NoteCard(
+    note: NoteEntity,
+    openTodos: Int,
+    onClick: () -> Unit,
+    onRetry: () -> Unit
+) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -225,7 +254,6 @@ private fun NoteCard(note: NoteEntity, onClick: () -> Unit) {
             .clickable(onClick = onClick)
             .padding(16.dp)
     ) {
-        val pending = note.status != NoteStatus.READY
         val title = if (note.title.isNotBlank()) note.title
         else note.content.replace("\n", " ").take(40)
         Text(
@@ -244,7 +272,6 @@ private fun NoteCard(note: NoteEntity, onClick: () -> Unit) {
                 overflow = TextOverflow.Ellipsis
             )
         }
-        // 元信息行：时间 + 分类 + 状态角标
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
@@ -256,24 +283,44 @@ private fun NoteCard(note: NoteEntity, onClick: () -> Unit) {
                 Spacer(Modifier.width(8.dp))
                 MetaChip(text = it)
             }
-            if (pending) {
-                Spacer(Modifier.width(8.dp))
-                Box(
-                    contentAlignment = Alignment.Center,
-                    modifier = Modifier
-                        .height(23.dp)
-                        .clip(RoundedCornerShape(VoiceInkRadius.Chip))
-                        .background(Accent12)
-                        .padding(horizontal = 9.dp)
-                ) {
-                    Text(
-                        if (note.status == NoteStatus.AI_FAILED) "整理失败" else "整理中",
-                        style = VoiceInkTextStyles.Chip,
-                        color = Accent
-                    )
+            when (note.status) {
+                NoteStatus.PENDING_AI -> {
+                    Spacer(Modifier.width(8.dp))
+                    StatusChip("整理中", onClick = null)
                 }
+                NoteStatus.AI_FAILED -> {
+                    Spacer(Modifier.width(8.dp))
+                    StatusChip("整理失败 · 点击重试", onClick = onRetry)
+                }
+                NoteStatus.READY -> Unit
+            }
+            if (openTodos > 0) {
+                Spacer(Modifier.weight(1f))
+                Icon(
+                    Icons.Outlined.CheckBox,
+                    contentDescription = null,
+                    tint = Accent,
+                    modifier = Modifier.size(12.dp)
+                )
+                Spacer(Modifier.width(4.dp))
+                Text("$openTodos 条待办", fontSize = 10.5.sp, color = Accent)
             }
         }
+    }
+}
+
+@Composable
+private fun StatusChip(text: String, onClick: (() -> Unit)?) {
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = Modifier
+            .height(23.dp)
+            .clip(RoundedCornerShape(VoiceInkRadius.Chip))
+            .background(Accent12)
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
+            .padding(horizontal = 9.dp)
+    ) {
+        Text(text, style = VoiceInkTextStyles.Chip, color = Accent)
     }
 }
 
@@ -292,7 +339,7 @@ fun MetaChip(text: String) {
 }
 
 @Composable
-private fun EmptyHint() {
+private fun EmptyHint(searching: Boolean) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier
@@ -300,12 +347,14 @@ private fun EmptyHint() {
             .padding(top = 80.dp)
     ) {
         Text(
-            "声落成章，念起成行",
-            fontFamily = com.voiceink.app.ui.theme.SerifFamily,
+            if (searching) "没有找到匹配的笔记" else "声落成章，念起成行",
+            fontFamily = SerifFamily,
             fontSize = 18.5.sp,
             color = Muted
         )
-        Spacer(Modifier.height(10.dp))
-        Text("点下方「记录灵感」，说出或写下第一条想法", fontSize = 12.5.sp, color = Faint)
+        if (!searching) {
+            Spacer(Modifier.height(10.dp))
+            Text("点下方「记录灵感」，说出或写下第一条想法", fontSize = 12.5.sp, color = Faint)
+        }
     }
 }

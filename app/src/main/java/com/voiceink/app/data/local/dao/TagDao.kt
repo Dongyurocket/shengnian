@@ -7,6 +7,7 @@ import androidx.room.Query
 import com.voiceink.app.data.local.entity.CategoryEntity
 import com.voiceink.app.data.local.entity.NoteTagCrossRef
 import com.voiceink.app.data.local.entity.TagEntity
+import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface TagDao {
@@ -21,6 +22,9 @@ interface TagDao {
 
     @Query("SELECT tag FROM note_tags WHERE noteId = :noteId")
     suspend fun tagsOf(noteId: Long): List<String>
+
+    @Query("SELECT tag FROM note_tags WHERE noteId = :noteId")
+    fun observeTags(noteId: Long): Flow<List<String>>
 }
 
 @Dao

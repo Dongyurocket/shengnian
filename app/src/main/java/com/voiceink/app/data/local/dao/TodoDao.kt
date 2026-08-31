@@ -7,6 +7,8 @@ import androidx.room.Update
 import com.voiceink.app.data.local.entity.TodoEntity
 import kotlinx.coroutines.flow.Flow
 
+data class NoteTodoCount(val noteId: Long, val openCount: Int)
+
 @Dao
 interface TodoDao {
     @Insert
@@ -26,6 +28,12 @@ interface TodoDao {
 
     @Query("SELECT COUNT(*) FROM todos WHERE sourceNoteId = :noteId AND done = 0")
     fun observeOpenCountForNote(noteId: Long): Flow<Int>
+
+    @Query("SELECT * FROM todos WHERE sourceNoteId = :noteId ORDER BY done ASC, createdAt ASC")
+    fun observeForNote(noteId: Long): Flow<List<TodoEntity>>
+
+    @Query("SELECT sourceNoteId AS noteId, COUNT(*) AS openCount FROM todos WHERE sourceNoteId IS NOT NULL AND done = 0 GROUP BY sourceNoteId")
+    fun observeOpenCountsPerNote(): Flow<List<NoteTodoCount>>
 
     @Query("DELETE FROM todos WHERE id = :id")
     suspend fun deleteById(id: Long)
