@@ -4,10 +4,12 @@ import android.app.NotificationManager
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import com.voiceink.app.data.repo.SettingsRepository
 import com.voiceink.app.data.repo.TodoRepository
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -19,6 +21,7 @@ class ReminderReceiver : BroadcastReceiver() {
 
     @Inject lateinit var todoRepository: TodoRepository
     @Inject lateinit var scheduler: ReminderScheduler
+    @Inject lateinit var settings: SettingsRepository
 
     override fun onReceive(context: Context, intent: Intent) {
         val todoId = intent.getLongExtra(EXTRA_TODO_ID, -1L)
@@ -31,7 +34,10 @@ class ReminderReceiver : BroadcastReceiver() {
                     ACTION_FIRE -> {
                         val todo = todoRepository.byId(todoId)
                         if (todo != null && !todo.done) {
-                            NotificationHelper.showTodoReminder(context, todo, sequence)
+                            NotificationHelper.showTodoReminder(
+                                context, todo, sequence,
+                                mode = settings.reminderMode.first()
+                            )
                         }
                     }
                     ACTION_COMPLETE -> {
@@ -49,7 +55,7 @@ class ReminderReceiver : BroadcastReceiver() {
                         if (todo != null && !todo.done) {
                             todoRepository.updateReminderTrigger(todoId, sequence, triggerAt)
                             scheduler.cancel(todoId, sequence)
-                            scheduler.schedule(todoId, sequence, triggerAt, todo.isAlarm)
+                            scheduler.schedule(todoId, sequence, triggerAt)
                         }
                         dismissNotification(context, todoId, sequence)
                     }

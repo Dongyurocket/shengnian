@@ -38,7 +38,7 @@ import com.voiceink.app.data.local.entity.TodoReminderEntity
         NoteDiagramEntity::class,
         TodoReminderEntity::class
     ],
-    version = 5,
+    version = 6,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {

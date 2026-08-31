@@ -75,16 +75,23 @@ object TimeUtils {
         return ((toStart.timeInMillis - fromStart.timeInMillis) / 86_400_000L).toInt()
     }
 
-    /** 笔记流分组标签：今天 / 昨天 / 更早 */
+    /** 笔记流分组标签：今天 / 昨天 / 更早，按本地自然日计算。 */
     fun dayLabel(ts: Long, now: Long = System.currentTimeMillis()): String {
-        val cal = Calendar.getInstance()
-        cal.timeInMillis = now
-        val nowYear = cal.get(Calendar.YEAR)
-        val nowDay = cal.get(Calendar.DAY_OF_YEAR)
-        cal.timeInMillis = ts
-        val tsYear = cal.get(Calendar.YEAR)
-        val tsDay = cal.get(Calendar.DAY_OF_YEAR)
-        val diff = (nowYear - tsYear) * 365 + (nowDay - tsDay) // 跨年粗略即可，仅用于分组
+        val today = Calendar.getInstance().apply {
+            timeInMillis = now
+            set(Calendar.HOUR_OF_DAY, 0)
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+        }
+        val date = Calendar.getInstance().apply {
+            timeInMillis = ts
+            set(Calendar.HOUR_OF_DAY, 0)
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+        }
+        val diff = ((today.timeInMillis - date.timeInMillis) / 86_400_000L).toInt()
         return when {
             diff <= 0 -> "今天"
             diff == 1 -> "昨天"

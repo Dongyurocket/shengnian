@@ -17,6 +17,7 @@ import com.voiceink.app.ai.embedding.EmbeddingClient
 import com.voiceink.app.ai.pipeline.LinkScanWorker
 import com.voiceink.app.data.export.MarkdownExporter
 import com.voiceink.app.data.repo.SettingsRepository
+import com.voiceink.app.reminder.ReminderMode
 import com.voiceink.app.update.AppUpdater
 import com.voiceink.app.update.UpdateChecker
 import com.voiceink.app.update.UpdateInfo
@@ -65,6 +66,7 @@ class SettingsViewModel @Inject constructor(
         val exportResult: String? = null,
         val openDirectCapture: Boolean = false,
         val remindLead: String = "5",
+        val reminderMode: ReminderMode = ReminderMode.SOUND,
         val saved: Boolean = false,
         val update: UpdateUiState = UpdateUiState()
     )
@@ -89,7 +91,8 @@ class SettingsViewModel @Inject constructor(
                 embedApiKey = embed.apiKey,
                 linkEnabled = repo.linkDiscoveryEnabled.first(),
                 openDirectCapture = repo.openDirectCapture.first(),
-                remindLead = repo.remindLeadMinutes.first().toString()
+                remindLead = repo.remindLeadMinutes.first().toString(),
+                reminderMode = repo.reminderMode.first()
             )
         }
     }
@@ -150,6 +153,7 @@ class SettingsViewModel @Inject constructor(
             repo.setLinkDiscoveryEnabled(s.linkEnabled)
             repo.setOpenDirectCapture(s.openDirectCapture)
             s.remindLead.toIntOrNull()?.let { repo.setRemindLeadMinutes(it) }
+            repo.setReminderMode(s.reminderMode)
             _ui.update { it.copy(saved = true) }
         }
     }

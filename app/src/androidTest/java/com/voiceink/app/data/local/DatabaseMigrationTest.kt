@@ -13,7 +13,7 @@ import org.junit.runner.RunWith
 @RunWith(AndroidJUnit4::class)
 class DatabaseMigrationTest {
     @Test
-    fun migrateV3DatabaseToV5PreservesDataAndCreatesTables() {
+    fun migrateV3DatabaseToV6PreservesDataAndCreatesTables() {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
         val name = "migration-${System.currentTimeMillis()}.db"
         val file = context.getDatabasePath(name)
@@ -22,7 +22,7 @@ class DatabaseMigrationTest {
 
         createV3Database(file)
         val database = Room.databaseBuilder(context, AppDatabase::class.java, name)
-            .addMigrations(MIGRATION_3_4, MIGRATION_4_5)
+            .addMigrations(MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
             .build()
         try {
             val migrated = database.openHelper.writableDatabase
@@ -32,12 +32,19 @@ class DatabaseMigrationTest {
                 assertEquals(1, cursor.getInt(1))
                 assertEquals("PENDING", cursor.getString(2))
             }
-            migrated.query("SELECT reminderCount, reminderIntervalMinutes, isAlarm, calendarEventId FROM todos WHERE id = 1").use { cursor ->
+            migrated.query("SELECT reminderCount, reminderIntervalMinutes, calendarEventId FROM todos WHERE id = 1").use { cursor ->
                 assertTrue(cursor.moveToFirst())
                 assertEquals(1, cursor.getInt(0))
                 assertEquals(10, cursor.getInt(1))
-                assertEquals(0, cursor.getInt(2))
-                assertTrue(cursor.isNull(3))
+                assertTrue(cursor.isNull(2))
+            }
+            migrated.query("PRAGMA table_info('todos')").use { cursor ->
+                val columns = mutableListOf<String>()
+                while (cursor.moveToNext()) {
+                    columns += cursor.getString(cursor.getColumnIndexOrThrow("name"))
+                }
+                assertTrue("isAlarm" !in columns)
+                assertTrue("calendarEventId" in columns)
             }
             migrated.query("SELECT sequence, triggerAt FROM todo_reminders WHERE todoId = 1").use { cursor ->
                 assertTrue(cursor.moveToFirst())

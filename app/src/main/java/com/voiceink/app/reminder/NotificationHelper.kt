@@ -13,21 +13,51 @@ import com.voiceink.app.data.local.entity.TodoEntity
 
 object NotificationHelper {
 
-    private const val CHANNEL_ID = "todo_reminders"
+    private const val CHANNEL_SOUND = "todo_reminders"
+    private const val CHANNEL_VIBRATE = "todo_reminders_vibrate"
+    private const val CHANNEL_SILENT = "todo_reminders_silent"
 
-    private fun ensureChannel(context: Context) {
+    /**
+     * 响铃 / 振动 / 静音三个渠道均为 IMPORTANCE_HIGH（保持抬头弹窗），仅声音与振动不同。
+     * 渠道的声音振动配置由系统持有，切换模式时发向对应渠道即可。
+     */
+    private fun ensureChannel(context: Context, mode: ReminderMode): String {
+        val channelId = when (mode) {
+            ReminderMode.SOUND -> CHANNEL_SOUND
+            ReminderMode.VIBRATE -> CHANNEL_VIBRATE
+            ReminderMode.SILENT -> CHANNEL_SILENT
+        }
         val nm = context.getSystemService(NotificationManager::class.java)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
-            nm.getNotificationChannel(CHANNEL_ID) == null
+            nm.getNotificationChannel(channelId) == null
         ) {
-            nm.createNotificationChannel(
-                NotificationChannel(CHANNEL_ID, "待办提醒", NotificationManager.IMPORTANCE_HIGH)
-            )
+            val channel = when (mode) {
+                ReminderMode.SOUND ->
+                    NotificationChannel(channelId, "待办提醒", NotificationManager.IMPORTANCE_HIGH)
+                ReminderMode.VIBRATE ->
+                    NotificationChannel(channelId, "待办提醒（仅振动）", NotificationManager.IMPORTANCE_HIGH).apply {
+                        setSound(null, null)
+                        enableVibration(true)
+                        vibrationPattern = longArrayOf(0, 300, 200, 300)
+                    }
+                ReminderMode.SILENT ->
+                    NotificationChannel(channelId, "待办提醒（静音）", NotificationManager.IMPORTANCE_HIGH).apply {
+                        setSound(null, null)
+                        enableVibration(false)
+                    }
+            }
+            nm.createNotificationChannel(channel)
         }
+        return channelId
     }
 
-    fun showTodoReminder(context: Context, todo: TodoEntity, sequence: Int = 0) {
-        ensureChannel(context)
+    fun showTodoReminder(
+        context: Context,
+        todo: TodoEntity,
+        sequence: Int = 0,
+        mode: ReminderMode = ReminderMode.SOUND
+    ) {
+        val channelId = ensureChannel(context, mode)
         val nm = context.getSystemService(NotificationManager::class.java)
         val notificationId = notificationId(todo.id, sequence)
 
@@ -39,9 +69,9 @@ object NotificationHelper {
         val doneAction = actionIntent(context, todo.id, sequence, ReminderReceiver.ACTION_COMPLETE)
         val snoozeAction = actionIntent(context, todo.id, sequence, ReminderReceiver.ACTION_SNOOZE)
 
-        val notification = NotificationCompat.Builder(context, CHANNEL_ID)
+        val notification = NotificationCompat.Builder(context, channelId)
             .setSmallIcon(R.drawable.ic_notification)
-            .setContentTitle(if (todo.isAlarm) "闹钟" else "待办提醒")
+            .setContentTitle("待办提醒")
             .setContentText(todo.content)
             .setContentIntent(openApp)
             .setAutoCancel(true)

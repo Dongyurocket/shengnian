@@ -37,7 +37,8 @@ private data class NoteFilters(
     val category: String?,
     val keyword: String,
     val inspiration: Boolean,
-    val lifecycleStatus: NoteLifecycleStatus?
+    val lifecycleStatus: NoteLifecycleStatus?,
+    val hasOpenTodo: Boolean
 )
 
 fun buildNoteSections(
@@ -145,6 +146,12 @@ class HomeViewModel @Inject constructor(
     private val lifecycle = MutableStateFlow<NoteLifecycleStatus?>(null)
     val lifecycleStatus: StateFlow<NoteLifecycleStatus?> = lifecycle.asStateFlow()
 
+    private val openTodoOnly = MutableStateFlow(false)
+    val hasOpenTodo: StateFlow<Boolean> = openTodoOnly.asStateFlow()
+
+    val allNotes: StateFlow<List<NoteEntity>> = repo.observeAll()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     val categories: StateFlow<List<String>> = repo.categories()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
@@ -169,8 +176,8 @@ class HomeViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
 
     val notes: StateFlow<List<NoteEntity>> =
-        combine(selectedCategory, keyword, inspirationOnly, lifecycle) { category, text, inspiration, status ->
-            NoteFilters(category, text, inspiration, status)
+        combine(selectedCategory, keyword, inspirationOnly, lifecycle, openTodoOnly) { category, text, inspiration, status, hasTodo ->
+            NoteFilters(category, text, inspiration, status, hasTodo)
         }
             .flatMapLatest { filters ->
                 repo.observe(
@@ -178,7 +185,8 @@ class HomeViewModel @Inject constructor(
                     null,
                     filters.keyword,
                     filters.inspiration,
-                    filters.lifecycleStatus
+                    filters.lifecycleStatus,
+                    filters.hasOpenTodo
                 )
             }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -193,6 +201,17 @@ class HomeViewModel @Inject constructor(
 
     fun setInspirationOnly(value: Boolean) {
         inspirationOnly.value = value
+    }
+
+    fun setOpenTodoOnly(value: Boolean) {
+        openTodoOnly.value = value
+    }
+
+    fun clearFilters() {
+        selectedCategory.value = null
+        inspirationOnly.value = false
+        lifecycle.value = null
+        openTodoOnly.value = false
     }
 
     fun setSelectionMode(enabled: Boolean) {

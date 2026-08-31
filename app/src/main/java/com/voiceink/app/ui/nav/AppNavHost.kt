@@ -182,14 +182,14 @@ fun AppNavHost() {
                     ) {
                         Icon(
                             imageVector = Icons.Outlined.Create,
-                            contentDescription = "记录灵感",
+                            contentDescription = "记录",
                             tint = Color.White,
                             modifier = Modifier.size(25.dp)
                         )
                     }
                 }
                 Text(
-                    text = "记录灵感",
+                    text = "记录",
                     fontSize = 9.5.sp,
                     letterSpacing = 1.sp,
                     color = Accent,

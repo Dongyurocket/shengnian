@@ -387,9 +387,9 @@ private fun TodoRow(
                         if (reminders.isNotEmpty()) {
                             if (todo.deadline != null) Spacer(Modifier.width(9.dp))
                             Text(
-                                (if (todo.isAlarm) "闹钟" else "提醒") + " ${reminders.size} 次",
+                                "提醒 ${reminders.size} 次",
                                 fontSize = 10.5.sp,
-                                color = if (todo.isAlarm) Accent else Muted
+                                color = Muted
                             )
                         }
                         if (todo.calendarEventId != null) {
@@ -455,7 +455,6 @@ private fun TodoEditDialog(
         mutableStateOf(todo.reminderIntervalMinutes.toString())
     }
     var timesText by remember(todo.id) { mutableStateOf(initialTimesText) }
-    var isAlarm by remember(todo.id) { mutableStateOf(todo.isAlarm) }
     var syncCalendar by remember(todo.id) { mutableStateOf(todo.calendarEventId != null) }
     var error by remember(todo.id) { mutableStateOf<String?>(null) }
 
@@ -466,7 +465,7 @@ private fun TodoEditDialog(
             .mapNotNull { TimeUtils.parseDateTime(it.trim()) }
             .firstOrNull()
             ?: deadlineText.trim().takeIf { it.isNotBlank() }?.let { TimeUtils.parseDateTime(it) }
-                ?.let { if (isAlarm) it else it - todo.remindLeadMinutes * 60_000L }
+                ?.let { it - todo.remindLeadMinutes * 60_000L }
         if (first == null) {
             error = "请先填写一个有效的截止时间或提醒时间"
             return
@@ -542,17 +541,6 @@ private fun TodoEditDialog(
                 }
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                     Column(Modifier.weight(1f)) {
-                        Text("作为手机闹钟", fontSize = 13.sp, color = Ink)
-                        Text("在提醒时使用系统闹钟方式触发", fontSize = 10.5.sp, color = Faint)
-                    }
-                    Switch(
-                        checked = isAlarm,
-                        onCheckedChange = { isAlarm = it },
-                        colors = SwitchDefaults.colors(checkedTrackColor = Accent)
-                    )
-                }
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                    Column(Modifier.weight(1f)) {
                         Text("同步到手机日历", fontSize = 13.sp, color = Ink)
                         Text("创建或更新一条日历事件", fontSize = 10.5.sp, color = Faint)
                     }
@@ -589,15 +577,14 @@ private fun TodoEditDialog(
                         val scheduleSettingsChanged =
                             deadlineText.trim() != initialDeadlineText.trim() ||
                                 requestedCount != todo.reminderCount.coerceIn(0, TodoRepository.MAX_REMINDERS) ||
-                                interval != todo.reminderIntervalMinutes ||
-                                isAlarm != todo.isAlarm
+                                interval != todo.reminderIntervalMinutes
                         val generated = if (timesWereUntouched && scheduleSettingsChanged) {
                             val first = deadline?.let {
-                                if (isAlarm) it else it - todo.remindLeadMinutes * 60_000L
+                                it - todo.remindLeadMinutes * 60_000L
                             } ?: parsedTimes.firstOrNull()
                             first?.let { reminderTimesFrom(it, requestedCount, interval) }.orEmpty()
                         } else if (parsedTimes.isEmpty() && deadline != null) {
-                            val first = if (isAlarm) deadline else deadline - todo.remindLeadMinutes * 60_000L
+                            val first = deadline - todo.remindLeadMinutes * 60_000L
                             reminderTimesFrom(first, requestedCount, interval)
                         } else parsedTimes
                         onSave(
@@ -607,7 +594,6 @@ private fun TodoEditDialog(
                                 reminders = generated,
                                 reminderCount = requestedCount,
                                 reminderIntervalMinutes = interval,
-                                isAlarm = isAlarm,
                                 syncCalendar = syncCalendar
                             )
                         )

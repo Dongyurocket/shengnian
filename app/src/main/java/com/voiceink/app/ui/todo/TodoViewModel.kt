@@ -21,7 +21,6 @@ data class TodoEditInput(
     val reminders: List<Long>,
     val reminderCount: Int,
     val reminderIntervalMinutes: Int,
-    val isAlarm: Boolean,
     val syncCalendar: Boolean
 )
 
@@ -83,7 +82,6 @@ class TodoViewModel @Inject constructor(
                     reminders = input.reminders,
                     reminderCount = input.reminderCount,
                     reminderIntervalMinutes = input.reminderIntervalMinutes,
-                    isAlarm = input.isAlarm,
                     calendarEventId = if (input.syncCalendar) todo.calendarEventId else null
                 )
                 val updated = repo.byId(todo.id)
@@ -114,26 +112,6 @@ class TodoViewModel @Inject constructor(
         }
     }
 
-    /** 兼容旧调用：编辑截止时间和单条提前提醒。 */
-    fun updateSchedule(id: Long, deadline: Long?, leadMinutes: Int) {
-        viewModelScope.launch {
-            val todo = repo.byId(id) ?: return@launch
-            val trigger = deadline?.let { if (todo.isAlarm) it else it - leadMinutes * 60_000L }
-            save(
-                todo,
-                TodoEditInput(
-                    content = todo.content,
-                    deadline = deadline,
-                    reminders = trigger?.let(::listOf).orEmpty(),
-                    reminderCount = if (trigger == null) 0 else 1,
-                    reminderIntervalMinutes = todo.reminderIntervalMinutes,
-                    isAlarm = todo.isAlarm,
-                    syncCalendar = todo.calendarEventId != null
-                )
-            )
-        }
-    }
-
     fun clearMessage() {
         _message.value = null
     }
@@ -148,7 +126,7 @@ class TodoViewModel @Inject constructor(
             reminders
         }
         times.filter { it.triggerAt > System.currentTimeMillis() }.forEach { item ->
-            reminder.schedule(todo.id, item.sequence, item.triggerAt, todo.isAlarm)
+            reminder.schedule(todo.id, item.sequence, item.triggerAt)
         }
     }
 

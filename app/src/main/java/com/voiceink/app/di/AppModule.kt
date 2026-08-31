@@ -6,6 +6,7 @@ import com.voiceink.app.core.AppJson
 import com.voiceink.app.data.local.AppDatabase
 import com.voiceink.app.data.local.MIGRATION_3_4
 import com.voiceink.app.data.local.MIGRATION_4_5
+import com.voiceink.app.data.local.MIGRATION_5_6
 import com.voiceink.app.data.local.dao.AttachmentDao
 import com.voiceink.app.data.local.dao.CategoryDao
 import com.voiceink.app.data.local.dao.EmbeddingDao
@@ -34,8 +35,8 @@ object AppModule {
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): AppDatabase =
         Room.databaseBuilder(context, AppDatabase::class.java, "voiceink.db")
-            .addMigrations(MIGRATION_3_4, MIGRATION_4_5)
-            // 未知的开发期 schema 仍可重建；已知 v3→v4 会优先走上面的保留数据迁移。
+            .addMigrations(MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
+            // 未知的开发期 schema 仍可重建；已知 v3→v6 会优先走上面的保留数据迁移。
             .fallbackToDestructiveMigration()
             .build()
 

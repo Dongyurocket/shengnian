@@ -9,6 +9,7 @@ import com.voiceink.app.ai.EmbeddingEndpoint
 import com.voiceink.app.ai.LlmEndpoint
 import com.voiceink.app.ai.LlmProtocol
 import com.voiceink.app.ai.ThinkingEffort
+import com.voiceink.app.reminder.ReminderMode
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
@@ -50,6 +51,7 @@ class SettingsRepository @Inject constructor(
         val EMBED_MODEL = stringPreferencesKey("embed_model")
         val DIRECT_CAPTURE = booleanPreferencesKey("open_direct_capture")
         val REMIND_LEAD = stringPreferencesKey("remind_lead_minutes")
+        val REMINDER_MODE = stringPreferencesKey("reminder_mode")
         val LINK_ENABLED = booleanPreferencesKey("link_discovery_enabled")
         val LAST_LINK_SCAN = stringPreferencesKey("last_link_scan")
     }
@@ -146,6 +148,14 @@ class SettingsRepository @Inject constructor(
 
     suspend fun setRemindLeadMinutes(value: Int) {
         context.settingsStore.edit { it[Keys.REMIND_LEAD] = value.coerceIn(0, 24 * 60).toString() }
+    }
+
+    /** 待办提醒的通知方式（响铃/振动/静音），默认响铃。 */
+    val reminderMode: Flow<ReminderMode> =
+        context.settingsStore.data.map { ReminderMode.fromName(it[Keys.REMINDER_MODE]) }
+
+    suspend fun setReminderMode(mode: ReminderMode) {
+        context.settingsStore.edit { it[Keys.REMINDER_MODE] = mode.name }
     }
 
     // ---- 关联发现 ----

@@ -31,16 +31,26 @@ interface NoteDao {
           AND (:tag IS NULL OR nt.tag = :tag)
           AND (:inspiration IS NULL OR n.isInspiration = :inspiration)
           AND (:lifecycleStatus IS NULL OR n.lifecycleStatus = :lifecycleStatus)
+          AND (:hasOpenTodo = 0 OR EXISTS (
+              SELECT 1 FROM todos open_todo
+              WHERE open_todo.sourceNoteId = n.id AND open_todo.done = 0
+          ))
           AND (:keyword IS NULL OR n.title LIKE '%'||:keyword||'%'
-               OR n.content LIKE '%'||:keyword||'%' OR nt.tag LIKE '%'||:keyword||'%')
-        ORDER BY n.createdAt DESC
+               OR n.content LIKE '%'||:keyword||'%' OR nt.tag LIKE '%'||:keyword||'%'
+               OR EXISTS (
+                   SELECT 1 FROM todos t
+                   WHERE t.sourceNoteId = n.id
+                     AND t.content LIKE '%'||:keyword||'%'
+               ))
+        ORDER BY n.updatedAt DESC, n.id DESC
     """)
     fun observeFiltered(
         category: String?,
         tag: String? = null,
         keyword: String? = null,
         inspiration: Boolean? = null,
-        lifecycleStatus: com.voiceink.app.data.local.entity.NoteLifecycleStatus? = null
+        lifecycleStatus: com.voiceink.app.data.local.entity.NoteLifecycleStatus? = null,
+        hasOpenTodo: Boolean = false
     ): Flow<List<NoteEntity>>
 
     @Query("SELECT * FROM notes WHERE id = :id")

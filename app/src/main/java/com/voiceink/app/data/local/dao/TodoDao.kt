@@ -62,7 +62,7 @@ interface TodoDao {
     @Query("UPDATE todos SET content = :content WHERE id = :id")
     suspend fun updateContent(id: Long, content: String)
 
-    @Query("UPDATE todos SET content = :content, deadline = :deadline, remindAt = :remindAt, remindLeadMinutes = :lead, reminderCount = :reminderCount, reminderIntervalMinutes = :reminderIntervalMinutes, isAlarm = :isAlarm, calendarEventId = :calendarEventId WHERE id = :id")
+    @Query("UPDATE todos SET content = :content, deadline = :deadline, remindAt = :remindAt, remindLeadMinutes = :lead, reminderCount = :reminderCount, reminderIntervalMinutes = :reminderIntervalMinutes, calendarEventId = :calendarEventId WHERE id = :id")
     suspend fun updateDetails(
         id: Long,
         content: String,
@@ -71,7 +71,6 @@ interface TodoDao {
         lead: Int,
         reminderCount: Int,
         reminderIntervalMinutes: Int,
-        isAlarm: Boolean,
         calendarEventId: Long?
     )
 
@@ -80,9 +79,6 @@ interface TodoDao {
 
     @Query("UPDATE todos SET remindAt = :remindAt WHERE id = :id")
     suspend fun updateRemindAt(id: Long, remindAt: Long?)
-
-    @Query("UPDATE todos SET deadline = :deadline, remindLeadMinutes = :lead, remindAt = :remindAt WHERE id = :id")
-    suspend fun updateSchedule(id: Long, deadline: Long?, lead: Int, remindAt: Long?)
 
     @Query("SELECT * FROM todos WHERE done = 0 AND remindAt IS NOT NULL")
     suspend fun pendingReminders(): List<TodoEntity>

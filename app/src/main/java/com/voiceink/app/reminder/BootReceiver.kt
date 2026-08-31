@@ -27,13 +27,13 @@ class BootReceiver : BroadcastReceiver() {
                     val reminders = todoRepository.listReminders(todo.id)
                     if (reminders.isEmpty()) {
                         todo.remindAt?.takeIf { it > now }?.let {
-                            scheduler.schedule(todo.id, 0, it, todo.isAlarm)
+                            scheduler.schedule(todo.id, 0, it)
                         }
                     } else {
                         reminders
                             .filter { it.triggerAt > now }
                             .forEach { item ->
-                                scheduler.schedule(todo.id, item.sequence, item.triggerAt, todo.isAlarm)
+                                scheduler.schedule(todo.id, item.sequence, item.triggerAt)
                             }
                     }
                 }

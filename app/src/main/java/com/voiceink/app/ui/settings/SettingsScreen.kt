@@ -50,6 +50,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.voiceink.app.ai.LlmProtocol
 import com.voiceink.app.ai.ThinkingEffort
+import com.voiceink.app.reminder.ReminderMode
 import com.voiceink.app.update.UpdateInfo
 import com.voiceink.app.ui.theme.Accent
 import com.voiceink.app.ui.theme.Accent12
@@ -325,6 +326,29 @@ fun SettingsScreen(
                 placeholder = "5",
                 number = true
             )
+            Spacer(Modifier.height(12.dp))
+            Text("提醒方式", style = VoiceInkTextStyles.Chip, color = Muted)
+            Spacer(Modifier.height(8.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                ReminderMode.entries.forEach { mode ->
+                    val selected = ui.reminderMode == mode
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(VoiceInkRadius.Chip))
+                            .background(if (selected) Accent12 else Paper2)
+                            .clickable { vm.update { it.copy(reminderMode = mode) } }
+                            .padding(horizontal = 9.dp, vertical = 5.dp)
+                    ) {
+                        Text(
+                            text = mode.label,
+                            style = VoiceInkTextStyles.Chip,
+                            color = if (selected) Accent else Muted
+                        )
+                    }
+                }
+            }
+            Spacer(Modifier.height(6.dp))
+            Text("待办到点弹出通知，此处控制提醒的声音与振动", fontSize = 10.5.sp, color = Faint)
             Spacer(Modifier.height(14.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(

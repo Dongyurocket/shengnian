@@ -264,7 +264,7 @@ class AiPipeline @Inject constructor(
         if (reminders.isEmpty()) {
             todo.remindAt?.takeIf { it > System.currentTimeMillis() }?.let {
                 try {
-                    reminder.schedule(todo.id, 0, it, todo.isAlarm)
+                    reminder.schedule(todo.id, 0, it)
                 } catch (cancelled: CancellationException) {
                     throw cancelled
                 } catch (_: Exception) {
@@ -275,7 +275,7 @@ class AiPipeline @Inject constructor(
         }
         try {
             reminders.filter { it.triggerAt > System.currentTimeMillis() }.forEach { item ->
-                reminder.schedule(todo.id, item.sequence, item.triggerAt, todo.isAlarm)
+                reminder.schedule(todo.id, item.sequence, item.triggerAt)
             }
         } catch (cancelled: CancellationException) {
             throw cancelled

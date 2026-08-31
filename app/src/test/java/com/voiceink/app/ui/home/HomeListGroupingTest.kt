@@ -55,6 +55,20 @@ class HomeListGroupingTest {
         assertTrue(sections.all { it.notes.isNotEmpty() })
     }
 
+    @Test
+    fun aggregateModeKeepsAllNotesVisible() {
+        val notes = listOf(
+            note(3, "Third", 300L),
+            note(2, "Second", 200L),
+            note(1, "First", 100L)
+        )
+
+        val sections = buildNoteSections(notes, NoteListMode.AGGREGATE, emptyList())
+
+        assertEquals(3, sections.sumOf { it.notes.size })
+        assertEquals(setOf(1L, 2L, 3L), sections.flatMap { it.notes }.map { it.id }.toSet())
+    }
+
     private fun note(id: Long, title: String, createdAt: Long, category: String? = null) =
         NoteEntity(id = id, title = title, content = title, category = category, createdAt = createdAt, updatedAt = createdAt)
 }

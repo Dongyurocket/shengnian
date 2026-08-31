@@ -40,19 +40,23 @@ class NoteRepository @Inject constructor(
             )
         )
 
+    fun observeAll(): Flow<List<NoteEntity>> = noteDao.observeAll()
+
     fun observe(
         category: String?,
         tag: String? = null,
         keyword: String? = null,
         inspiration: Boolean? = null,
-        lifecycleStatus: NoteLifecycleStatus? = null
+        lifecycleStatus: NoteLifecycleStatus? = null,
+        hasOpenTodo: Boolean = false
     ): Flow<List<NoteEntity>> =
         noteDao.observeFiltered(
             category,
             tag,
             keyword?.takeIf { it.isNotBlank() },
             inspiration,
-            lifecycleStatus
+            lifecycleStatus,
+            hasOpenTodo
         )
 
     fun observeById(id: Long): Flow<NoteEntity?> = noteDao.observeById(id)

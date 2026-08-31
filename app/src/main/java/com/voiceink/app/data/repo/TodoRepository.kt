@@ -33,26 +33,6 @@ class TodoRepository @Inject constructor(
         }
     }
 
-    /** 兼容旧入口：保存截止时间和单条提前提醒。 */
-    suspend fun updateSchedule(id: Long, deadline: Long?, lead: Int) {
-        val todo = byId(id) ?: return
-        val safeLead = lead.coerceIn(0, 24 * 60)
-        val remindAt = deadline
-            ?.let { if (todo.isAlarm) it else it - safeLead * 60_000L }
-            ?.takeIf { it > System.currentTimeMillis() }
-        updateDetails(
-            id = id,
-            content = todo.content,
-            deadline = deadline,
-            reminders = remindAt?.let(::listOf).orEmpty(),
-            reminderCount = if (remindAt == null) 0 else 1,
-            reminderIntervalMinutes = todo.reminderIntervalMinutes,
-            isAlarm = todo.isAlarm,
-            calendarEventId = todo.calendarEventId,
-            remindLeadMinutes = safeLead
-        )
-    }
-
     /** 开机重排数据源（§10 BootReceiver） */
     suspend fun pendingReminders(): List<TodoEntity> = todoDao.pendingReminders()
 
@@ -75,7 +55,6 @@ class TodoRepository @Inject constructor(
         reminders: List<Long>,
         reminderCount: Int,
         reminderIntervalMinutes: Int,
-        isAlarm: Boolean,
         calendarEventId: Long?,
         remindLeadMinutes: Int = 0
     ) {
@@ -97,7 +76,6 @@ class TodoRepository @Inject constructor(
                 lead = remindLeadMinutes.coerceIn(0, 24 * 60),
                 reminderCount = selectedTimes.size,
                 reminderIntervalMinutes = safeInterval,
-                isAlarm = isAlarm,
                 calendarEventId = calendarEventId
             )
             reminderDao.deleteForTodo(id)
@@ -141,9 +119,9 @@ class TodoRepository @Inject constructor(
 
     /** 从 AI 解析结果建待办：remindAt = deadline - 提前量（用户未指定用默认）。sourceNoteId 可空。 */
     suspend fun insertFrom(parsed: ParsedIntent.Todo, sourceNoteId: Long?): Long {
-        val lead = if (parsed.isAlarm) 0 else parsed.remindLeadMinutes ?: settings.remindLeadMinutes.first()
+        val lead = parsed.remindLeadMinutes ?: settings.remindLeadMinutes.first()
         val triggerAt = parsed.deadline
-            ?.let { if (parsed.isAlarm) it else it - lead * 60_000L }
+            ?.let { it - lead * 60_000L }
             ?.takeIf { it > System.currentTimeMillis() }
         return database.withTransaction {
             val todoId = todoDao.insert(
@@ -155,7 +133,6 @@ class TodoRepository @Inject constructor(
                     remindLeadMinutes = lead,
                     reminderCount = if (triggerAt == null) 0 else 1,
                     reminderIntervalMinutes = DEFAULT_INTERVAL_MINUTES,
-                    isAlarm = parsed.isAlarm,
                     sourceNoteId = sourceNoteId
                 )
             )

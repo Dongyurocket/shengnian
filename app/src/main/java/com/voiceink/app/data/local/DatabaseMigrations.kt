@@ -94,3 +94,40 @@ val MIGRATION_4_5 = object : Migration(4, 5) {
         )
     }
 }
+
+/** 移除系统闹钟特性：重建 todos 表去掉 isAlarm 列，保留全部待办数据与提醒外键。 */
+val MIGRATION_5_6 = object : Migration(5, 6) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS todos_new (
+                id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                content TEXT NOT NULL,
+                priority INTEGER NOT NULL,
+                deadline INTEGER,
+                remindAt INTEGER,
+                remindLeadMinutes INTEGER NOT NULL,
+                reminderCount INTEGER NOT NULL DEFAULT 1,
+                reminderIntervalMinutes INTEGER NOT NULL DEFAULT 10,
+                calendarEventId INTEGER,
+                done INTEGER NOT NULL,
+                sourceNoteId INTEGER,
+                createdAt INTEGER NOT NULL
+            )
+            """.trimIndent()
+        )
+        db.execSQL(
+            """
+            INSERT INTO todos_new(id, content, priority, deadline, remindAt, remindLeadMinutes,
+                reminderCount, reminderIntervalMinutes, calendarEventId, done, sourceNoteId, createdAt)
+            SELECT id, content, priority, deadline, remindAt, remindLeadMinutes,
+                reminderCount, reminderIntervalMinutes, calendarEventId, done, sourceNoteId, createdAt
+            FROM todos
+            """.trimIndent()
+        )
+        db.execSQL("DROP TABLE todos")
+        db.execSQL("ALTER TABLE todos_new RENAME TO todos")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_todos_deadline ON todos(deadline)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_todos_done ON todos(done)")
+    }
+}

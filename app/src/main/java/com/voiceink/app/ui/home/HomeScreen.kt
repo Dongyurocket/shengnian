@@ -28,6 +28,7 @@ import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.CheckBox
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -95,6 +96,9 @@ fun HomeScreen(
     val sections by vm.sections.collectAsStateWithLifecycle()
     val relatedCounts by vm.relatedCounts.collectAsStateWithLifecycle()
     val lifecycleStatus by vm.lifecycleStatus.collectAsStateWithLifecycle()
+    val hasOpenTodo by vm.hasOpenTodo.collectAsStateWithLifecycle()
+    val allNotes by vm.allNotes.collectAsStateWithLifecycle()
+    var showFilters by remember { mutableStateOf(false) }
     var showMergeConfirm by androidx.compose.runtime.remember { mutableStateOf(false) }
     var deleteNote by androidx.compose.runtime.remember { mutableStateOf<NoteEntity?>(null) }
     var categoryNote by androidx.compose.runtime.remember { mutableStateOf<NoteEntity?>(null) }
@@ -119,33 +123,39 @@ fun HomeScreen(
         }
         item { SearchBox(keyword, vm::setKeyword) }
         item {
-            FilterChips(
-                categories = categories,
+            QuickFilters(
                 selected = selected,
                 inspirationOnly = inspirationOnly,
-                totalCount = notes.size,
-                onSelect = {
-                    vm.setInspirationOnly(false)
-                    vm.selectCategory(it)
+                hasOpenTodo = hasOpenTodo,
+                totalCount = allNotes.size,
+                hasAdvancedFilters = lifecycleStatus != null,
+                onShowAll = {
+                    vm.clearFilters()
+                    vm.setKeyword("")
                 },
                 onSelectInspiration = {
-                    vm.selectCategory(null)
-                    vm.setInspirationOnly(it)
-                }
+                    vm.clearFilters()
+                    vm.setInspirationOnly(true)
+                },
+                onSelectOpenTodo = {
+                    vm.clearFilters()
+                    vm.setOpenTodoOnly(true)
+                },
+                onOpenFilters = { showFilters = true }
             )
         }
 
-        item {
-            ListModeSelector(
-                selected = listMode,
-                onSelect = vm::setListMode
-            )
-        }
-        item {
-            LifecycleFilterChips(
-                selected = lifecycleStatus,
-                onSelect = vm::selectLifecycleStatus
-            )
+        if (selected != null || inspirationOnly || hasOpenTodo || lifecycleStatus != null || keyword.isNotBlank()) {
+            item {
+                ActiveFilterSummary(
+                    visibleCount = notes.size,
+                    totalCount = allNotes.size,
+                    onClear = {
+                        vm.clearFilters()
+                        vm.setKeyword("")
+                    }
+                )
+            }
         }
 
         if (actionMessage != null) {
@@ -194,6 +204,18 @@ fun HomeScreen(
                 }
             }
         }
+    }
+
+    if (showFilters) {
+        AdvancedFiltersDialog(
+            categories = categories,
+            selectedCategory = selected,
+            selectedLifecycle = lifecycleStatus,
+            onCategorySelected = vm::selectCategory,
+            onLifecycleSelected = vm::selectLifecycleStatus,
+            onClear = vm::clearFilters,
+            onDismiss = { showFilters = false }
+        )
     }
 
     if (showMergeConfirm) {
@@ -361,12 +383,93 @@ private fun SearchBox(keyword: String, onChange: (String) -> Unit) {
             modifier = Modifier.fillMaxWidth(),
             decorationBox = { inner ->
                 if (keyword.isEmpty()) {
-                    Text("搜索灵感、标签或待办", fontSize = 13.5.sp, color = Faint)
+                    Text("搜索笔记、标签或待办", fontSize = 13.5.sp, color = Faint)
                 }
                 inner()
             }
         )
     }
+}
+
+@Composable
+private fun QuickFilters(
+    selected: String?,
+    inspirationOnly: Boolean,
+    hasOpenTodo: Boolean,
+    totalCount: Int,
+    hasAdvancedFilters: Boolean,
+    onShowAll: () -> Unit,
+    onSelectInspiration: () -> Unit,
+    onSelectOpenTodo: () -> Unit,
+    onOpenFilters: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 14.dp, bottom = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(7.dp)
+    ) {
+        FilterChip("全部 $totalCount", selected == null && !inspirationOnly && !hasOpenTodo, onShowAll)
+        FilterChip("灵感", inspirationOnly, onSelectInspiration)
+        FilterChip("有待办", hasOpenTodo, onSelectOpenTodo)
+        Spacer(Modifier.weight(1f))
+        IconButton(onClick = onOpenFilters, modifier = Modifier.size(30.dp)) {
+            Icon(Icons.Outlined.Tune, contentDescription = "更多筛选", tint = if (hasAdvancedFilters || selected != null) Accent else Muted, modifier = Modifier.size(18.dp))
+        }
+    }
+}
+
+@Composable
+private fun ActiveFilterSummary(visibleCount: Int, totalCount: Int, onClear: () -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text("当前显示 $visibleCount / 全部 $totalCount", fontSize = 11.sp, color = Muted)
+        Spacer(Modifier.weight(1f))
+        TextButton(onClick = onClear, contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)) {
+            Text("清除筛选", fontSize = 11.sp, color = Accent)
+        }
+    }
+}
+
+@Composable
+private fun AdvancedFiltersDialog(
+    categories: List<String>,
+    selectedCategory: String?,
+    selectedLifecycle: NoteLifecycleStatus?,
+    onCategorySelected: (String?) -> Unit,
+    onLifecycleSelected: (NoteLifecycleStatus?) -> Unit,
+    onClear: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = SurfaceCard,
+        title = { Text("筛选笔记", style = VoiceInkTextStyles.NoteTitle) },
+        text = {
+            Column {
+                Text("分类", fontSize = 12.sp, color = Muted)
+                Row(Modifier.horizontalScroll(rememberScrollState()).padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                    FilterChip("全部分类", selectedCategory == null, { onCategorySelected(null) })
+                    categories.forEach { category ->
+                        FilterChip(category, selectedCategory == category, { onCategorySelected(category) })
+                    }
+                }
+                Spacer(Modifier.height(16.dp))
+                Text("笔记状态", fontSize = 12.sp, color = Muted)
+                Row(Modifier.horizontalScroll(rememberScrollState()).padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                    FilterChip("全部状态", selectedLifecycle == null, { onLifecycleSelected(null) })
+                    NoteLifecycleStatus.entries.forEach { status ->
+                        FilterChip(status.label, selectedLifecycle == status, { onLifecycleSelected(status) })
+                    }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("完成", color = Accent) } },
+        dismissButton = { TextButton(onClick = { onClear(); onDismiss() }) { Text("重置", color = Muted) } }
+    )
 }
 
 @Composable
@@ -522,7 +625,7 @@ private fun NoteCard(
                 RoundedCornerShape(VoiceInkRadius.Card)
             )
             .clickable(onClick = onClick)
-            .padding(16.dp)
+            .padding(12.dp)
     ) {
         val title = if (note.title.isNotBlank()) note.title
         else note.content.replace("\n", " ").take(40)
