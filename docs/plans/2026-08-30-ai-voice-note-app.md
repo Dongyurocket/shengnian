@@ -2,11 +2,11 @@
 
 > 执行时可配合 executing-plans Skill 按任务逐条实施。
 
-**目标（Goal）：** 交付一款 Android 原生应用「声念」（slogan：声落成章，念起成行）：极速文本输入（语音转写交给系统输入法，如豆包输入法，App 不内置 ASR）→ 用户自选协议（OpenAI Chat Completions / OpenAI Responses / Anthropic Messages）的 LLM 完成意图分流、笔记结构化（标题/多维分类/标签/摘要）、待办提取与本地提醒、笔记语义关联双向链接。
+**目标（Goal）：** 交付一款 Android 原生应用「声念」（slogan：声落成章，念起成行）：以极速灵感采集为起点，由用户自选协议（OpenAI Chat Completions / OpenAI Responses / Anthropic Messages）的 LLM 完成意图分流、笔记结构化（标题/多维分类/标签/摘要）、待办提取与本地提醒、笔记语义关联双向链接。
 
 **设计基准（Design Baseline）：** 全部 UI 实现以「声念」设计稿为视觉基准——本地镜像 `docs/design/shengnian-ui.html`（设计规范区 + 5 屏画板，浏览器直接打开）；源文件在 Open Design 项目 `ai-ui-c6c9`（预览 http://127.0.0.1:7456/api/projects/ai-ui-c6c9/raw/index.html），迭代后需重新导出覆盖本地镜像。冲突仲裁原则：**视觉呈现以设计稿为准（§11），功能流程以本计划为准**。
 
-**架构（Architecture）：** 单 Module Kotlin 工程，MVVM + 单向数据流；Room 本地持久化（笔记/待办/标签/关联/向量）；输入层为纯文本采集（语音转写由系统输入法完成，App 零音频权限）；AI 层采用适配器模式（`LlmAdapter` 接口 + 三个协议适配器）将协议差异收敛为统一内部模型 `LlmRequest/LlmResult`；处理流水线 `AiPipeline`（意图分流 → 笔记整理 → 关联发现）通过 WorkManager 保证离线重试。
+**架构（Architecture）：** 单 Module Kotlin 工程，MVVM + 单向数据流；Room 本地持久化（笔记/待办/标签/关联/向量）；输入层为轻量文本采集与多入口承接；AI 层采用适配器模式（`LlmAdapter` 接口 + 三个协议适配器）将协议差异收敛为统一内部模型 `LlmRequest/LlmResult`；处理流水线 `AiPipeline`（意图分流 → 笔记整理 → 关联发现）通过 WorkManager 保证离线重试。
 
 **技术栈（Tech Stack）：** Kotlin 2.x、minSdk 24、Jetpack Compose（Material3）、Room、OkHttp + kotlinx.serialization、WorkManager、Hilt（依赖注入）、Android Keystore（API Key 加密）、MockWebServer + JUnit（协议适配层单测）。
 
@@ -16,10 +16,10 @@
 
 | # | 需求点 | 审阅结论与决策 |
 |---|--------|----------------|
-| 1 | 输入方式 | **App 不内置语音识别**：语音转写交给系统输入法（豆包输入法、讯飞输入法等），App 只接收纯文本。砍掉最重的第三方 SDK 集成、RECORD_AUDIO 权限与前台服务合规负担，聚焦 AI 整理核心价值；也避免与输入法重复造轮子。 |
+| 1 | 输入方式 | **先记下来，再整理成章**：以极短路径承接灵感输入，保存后自动进入 AI 整理流程，持续降低记录与回顾的成本。 |
 | 2 | 三协议支持 | Responses API 与 Anthropic 在"强制 JSON 输出"上的能力不同（见 §7.6 对比表），统一用"JSON Schema/response_format + 助手预填 + 解析兜底"三级策略。 |
 | 3 | Embedding 语义检索 | Embedding 为**独立配置**：设置页单独填写 Base URL / API Key / 模型名（可指向 OpenAI 官方、硅基流动、Jina、本地 Ollama 等任何 OpenAI 兼容 `/v1/embeddings` 服务），与聊天用 LLM 协议完全解耦。未配置或调用失败 → 走降级链路（标签 Jaccard + LLM 两两复核），见 §9。向量本地暴力余弦检索，万级笔记性能足够，暂不引入 sqlite-vec（YAGNI，留接口）。 |
-| 4 | 零摩擦入口 | 没有录音按钮后，用三招补入口速度：① 首页底部中央 FAB 一键进速记页并自动弹键盘（遵循设计稿屏 01/02 结构；另提供"打开 App 直接进速记"可选设置项，照顾极速记录偏好）；② 系统分享菜单接收文本（ACTION_SEND）直接建笔记；③ 桌面快捷方式/小部件一键直达输入框。 |
+| 4 | 零摩擦入口 | 用三条路径覆盖不同场景：① 首页底部中央 FAB 一键进入速记页，并提供"打开 App 直接进速记"设置项；② 系统分享菜单接收文本，直接沉淀为笔记；③ 桌面快捷方式/小部件一键直达输入框。 |
 | 5 | 精确闹钟 | API 31+ 需 `SCHEDULE_EXACT_ALARM` 权限或降级 `setWindow`；API 33+ 需 `POST_NOTIFICATIONS` 运行时权限。 |
 | 6 | 离线/失败 | AI 处理失败不能丢输入成果：文本先落库为"待整理"笔记，AI 流水线异步执行、失败重试（WorkManager 指数退避）。 |
 | 7 | 云同步 | MVP 不做；导出为 Markdown+JSON（含 frontmatter）到用户目录，作为备份与后续 WebDAV 同步的过渡。 |
@@ -51,7 +51,7 @@
 
 关键数据流（一次输入的完整旅程）：
 
-1. 用户点首页 FAB 进入速记页 → 键盘自动弹出（语音输入由用户输入法完成，如豆包输入法语音转文字）→ 输入或说出内容 → 点"保存"。
+1. 用户点首页 FAB 进入速记页 → 快速输入内容 → 点"保存"。
 2. 文本**立即**以 `status=PENDING_AI` 存入 `notes` 表（保证不丢），输入框清空可继续下一条。
 3. `AiPipeline.enqueue(noteId)` 入 WorkManager（联网约束）：
    - 步骤 A `IntentRouter`：一次 LLM 调用完成"意图分类 + 结构化抽取"（笔记/待办一个 Prompt 搞定，省一次往返）；
@@ -196,7 +196,7 @@ dependencyResolutionManagement {
 }
 ```
 
-`AndroidManifest.xml` 关键声明（无音频/前台服务权限，权限面积极小）：
+`AndroidManifest.xml` 关键声明（权限面积极小）：
 
 ```xml
 <uses-permission android:name="android.permission.INTERNET" />
@@ -403,7 +403,7 @@ class ApiKeyStore(context: Context) {
 
 ### 6.1 设计原则
 
-语音转写已由系统输入法承担（用户用豆包输入法等说完即得文字），App 要做的是把"想法 → 落库"的链路缩到最短：**首页点 FAB → 速记页键盘已弹出 → 输入/说话 → 保存 → 立刻可以输入下一条**。保存不等待 AI，AI 全部异步。默认首页为笔记流（设计稿屏 01）；另有"打开 App 直接进速记页"设置项，供极速记录偏好者开启。
+记录体验的核心是把"想法 → 落库 → 整理 → 行动"的链路缩到最短：**首页点 FAB → 进入速记页 → 快速输入 → 保存 → 立刻可以输入下一条**。保存不等待 AI，AI 全部异步。默认首页为笔记流（设计稿屏 01）；另有"打开 App 直接进速记页"设置项，供极速记录偏好者开启。
 
 ### 6.2 CaptureController
 
@@ -441,7 +441,7 @@ class ShareIngestActivity : ComponentActivity() {
 
 ### 6.3 入口速度优化
 
-- **速记页**：`CaptureScreen` 进入即 `focusRequester.requestFocus()` + `keyboardController.show()`；大输入框 + 底部"保存并继续"按钮；支持多行、Ctrl+Enter 快捷保存。视觉按设计稿屏 02：衬线体编辑区 + 常驻 AI 提示条「保存后自动整理，并提炼待办」。设计稿中"键盘麦克风键呼吸光晕"是引导示意——Android 不绘制系统键盘，落地为首启 Coach Mark + 输入框 placeholder「说点什么，或写点什么…」。
+- **速记页**：`CaptureScreen` 进入即 `focusRequester.requestFocus()` + `keyboardController.show()`；大输入框 + 底部"保存并继续"按钮；支持多行、Ctrl+Enter 快捷保存。视觉按设计稿屏 02：衬线体编辑区 + 常驻 AI 提示条「保存后自动整理，并提炼待办」。输入区域焦点光晕强化"记录后自动整理"的反馈，首启通过 Coach Mark 引导用户认识 placeholder「写下此刻的想法…」。
 - **桌面快捷方式**（`ShortcutManager`）：长按图标弹出"新建灵感""新建待办"，直达输入页并预设意图提示（"新建待办"时 AI 优先判 todo）。
 - **分享接收**：任何 App 选中文本 → 分享 → 本 App → 静默落库（见上 `ShareIngestActivity`）。
 - **剪贴板快捷**（可选）：输入页检测剪贴板非空且未入库时，顶部显示"粘贴最近复制内容？"Chip，一键入库。
@@ -888,7 +888,7 @@ class AiPipeline @Inject constructor(
 ```kotlin
 object Prompts {
     val INTENT_AND_ORGANIZE = """
-你是一个个人笔记整理助手。用户会提供一段输入文本（可能来自语音输入法，可能有口语、重复、识别错字）。
+你是一个个人笔记整理助手。用户会提供一段待整理的输入文本，内容可能包含口语、重复、识别错字或零散片段。
 请先纠正明显错字，再判断意图并只输出一个 JSON 对象，不要输出任何其他文字。
 
 意图 A：灵感/想法/随笔/记录 → 输出：
@@ -1153,7 +1153,7 @@ class ReminderReceiver : BroadcastReceiver() {
 ### 11.1 品牌
 
 - 名称：**声念**；slogan：**声落成章，念起成行**。应用显示名用「声念」；包名维持 `com.voiceink.app` 不变（避免改名成本）。
-- 产品气质：简洁、优雅、现代、有呼吸感；**不出现任何录音/声波元素**（App 无录音功能，设计稿原则一即「不画录音」）。
+- 产品气质：简洁、优雅、现代、有呼吸感；以清晰的信息层级、轻量的交互和连续的记录体验为核心。
 
 ### 11.2 设计 Token（`ui/theme/` 的直接输入）
 
@@ -1165,21 +1165,21 @@ class ReminderReceiver : BroadcastReceiver() {
 | 墨 `#1A1A1A` | 主文字 |
 | 灰 `#8C8A84` | 辅助文字 |
 | 分隔 `#EAE8E2` | 1px 极淡分隔线 |
-| 紫罗兰 `#6B5CE7` | **唯一点缀色，每屏 ≤2 处**：FAB、听写引导、关键状态（AI 摘要标识、进度条、峰值高亮） |
+| 紫罗兰 `#6B5CE7` | **唯一点缀色，每屏 ≤2 处**：FAB、AI 整理提示与关键状态（AI 摘要标识、进度条、峰值高亮） |
 
 - **字体**：标题 / 编辑器正文 = 衬线（Noto Serif SC，回退系统 Noto Serif CJK，600）；界面 / 正文 = 无衬线（Inter / 系统默认）；数据与时间 = Inter 300 + `tabular-nums`。
 - **字号阶梯**：26 / 23 / 18.5 / 16 / 13.5 / 12.5 / 10.5 sp，行高 1.45–1.92。
 - **圆角**：chip 7 / 小件 10 / 输入 14 / 卡片 18 / 大容器 22 dp。
 - **投影**：卡片 `y1 + y6 blur18` 低透明度；FAB 带紫光晕。Android 用 `tonalElevation` + 极淡 shadow 近似。
 
-三条设计原则（并入代码评审 checklist）：**不画录音**；**单一点缀色**（其余交给墨与灰阶）；**留白即节奏**（衬线承担「写」，无衬线承担「用」，卡片之间留够呼吸）。
+三条设计原则（并入代码评审 checklist）：**先记下来，再整理成章**（记录自然进入 AI 工作流）；**单一点缀色**（其余交给墨与灰阶）；**留白即节奏**（衬线承担「写」，无衬线承担「用」，卡片之间留够呼吸）。
 
 ### 11.3 屏幕映射（设计稿 → App 路由）
 
 | 设计稿 | App 屏幕 | 说明 |
 |---|---|---|
 | 屏 01 首页 · 灵感笔记流 | `HomeScreen`（首页 Tab） | 品牌区 + 搜索 + 分类 Chip + 按「今天/昨天」分组的笔记卡片流；底部中央 FAB「记录灵感」悬浮于 Tab 栏之上；右上角「念」头像 → 设置页 |
-| 屏 02 快速记录页 | `CaptureScreen` | FAB 进入，进入即弹键盘；衬线编辑区 + AI 提示条；键盘麦克风光晕为首启 Coach Mark 示意（见 §6.3） |
+| 屏 02 快速记录页 | `CaptureScreen` | FAB 进入，进入即聚焦输入区；衬线编辑区 + AI 提示条；输入焦点光晕强化保存后的整理反馈（见 §6.3） |
 | 屏 03 笔记详情页 | `NoteDetailScreen` | AI 摘要卡（紫罗兰淡底）、带小标题的整理正文、标签 Chip、「AI 提炼的待办」列表（一键加入/已加入态） |
 | 屏 04 智能待办页 | `TodoScreen`（待办 Tab） | 顶部日期 + 完成进度条；「今天/接下来」分组卡片；优先级标（高=紫罗兰淡底，中=米灰）；来源笔记回溯链接；圆形勾选完成态 |
 | 屏 05 洞察页 | `InsightsScreen`（洞察 Tab） | 记录条数/提炼待办/完成率三 tile、连续记录点阵、24h 时段分布柱状（峰值紫罗兰）、灵感关键词云；阶段 6 实现，数据全部来自 Room 聚合 |

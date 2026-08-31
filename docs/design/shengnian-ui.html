@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>声念 — AI 灵感笔记 + 智能待办 · 移动端 UI</title>
+<title>声念 — AI 灵感整理、智能待办与知识关联 · 移动端 UI</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;500;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
@@ -72,8 +72,6 @@ svg{display:block}
 .pr::before{content:"";position:absolute;left:0;top:9px;width:5px;height:5px;border-radius:50%;
   background:var(--accent);opacity:.55}
 .pr b{font-weight:600;color:var(--ink)}
-.pr.no::before{background:var(--ink);opacity:.28}
-
 /* ============ 画板展示台 ============ */
 .stripwrap{max-width:1250px;margin:0 auto;padding:46px 28px 0}
 .striphead{display:flex;align-items:baseline;gap:14px;margin-bottom:30px}
@@ -206,7 +204,7 @@ svg{display:block}
 .guide-arrow{position:absolute;left:0;top:24px;width:390px;height:32px;color:var(--accent);
   opacity:.5}
 
-/* iOS 键盘 */
+/* 输入区键盘 */
 .kb{flex:none;background:#D8D6CF;padding:9px 3px 0;position:relative;z-index:5}
 .kbrow{display:flex;gap:6px;padding:0 3px;margin-bottom:11px;justify-content:center}
 .key{height:42px;flex:1;background:#fff;border-radius:5px;display:grid;place-items:center;
@@ -218,11 +216,11 @@ svg{display:block}
 .key.w78{flex:none;width:78px;font-size:14px;background:#ADABA4}
 .key.sp{flex:1;font-size:13px;color:var(--muted);letter-spacing:.2em}
 .key .ic{width:19px;height:19px;color:#1A1A1A}
-.key.mic{position:relative;background:#fff;flex:none;width:38px;z-index:2}
-.key.mic .ic{width:17px;height:17px;color:var(--accent)}
-.key.mic::before{content:"";position:absolute;inset:-1px;border-radius:6px;
+.key.ai{position:relative;background:#fff;flex:none;width:38px;z-index:2}
+.key.ai .ic{width:17px;height:17px;color:var(--accent)}
+.key.ai::before{content:"";position:absolute;inset:-1px;border-radius:6px;
   box-shadow:0 0 0 1.5px var(--accent);opacity:.9}
-.key.mic::after{content:"";position:absolute;inset:-1px;border-radius:6px;z-index:-1;
+.key.ai::after{content:"";position:absolute;inset:-1px;border-radius:6px;z-index:-1;
   box-shadow:0 0 0 2px rgba(107,92,231,.55),0 0 14px 5px rgba(107,92,231,.42);
   animation:breathe 2.7s ease-in-out infinite}
 @keyframes breathe{
@@ -230,7 +228,7 @@ svg{display:block}
   50%{opacity:1;transform:scale(1.09)}
 }
 @media (prefers-reduced-motion:reduce){
-  .key.mic::after{animation:none;opacity:.7}
+  .key.ai::after{animation:none;opacity:.7}
   .caret{animation:none}
 }
 
@@ -385,10 +383,6 @@ svg{display:block}
     <path d="M5.6 4.4h9.2l4 4v11.2H5.6z"/><path d="M9 12.4h6M9 16h4"/></symbol>
   <symbol id="i-sort" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
     stroke-linecap="round"><path d="M4.6 7h14.8M7 12h10M10 17h4"/></symbol>
-  <symbol id="i-mic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
-    stroke-linecap="round" stroke-linejoin="round">
-    <rect x="9.2" y="2.8" width="5.6" height="10.4" rx="2.8"/>
-    <path d="M5.6 11.6a6.4 6.4 0 0 0 12.8 0M12 18v3.2"/></symbol>
   <symbol id="i-globe" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
     <circle cx="12" cy="12" r="8.4"/><path d="M3.6 12h16.8M12 3.6a13 13 0 0 1 0 16.8 13 13 0 0 1 0-16.8"/></symbol>
   <symbol id="i-shift" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
@@ -407,8 +401,8 @@ svg{display:block}
       <div class="slogan">声落成章，念起成行</div>
     </div>
     <div class="mast-r">
-      AI 灵感笔记 + 智能待办 · iOS 移动端界面规范<br>
-      <b>无录音模块</b>：语音输入完全交由系统输入法听写完成，界面中不出现录音按钮、声波与时长。
+      AI 灵感笔记 + 智能待办 · Android 移动端界面规范<br>
+      <b>从记录到行动</b>：用一条清晰路径承接灵感输入、AI 整理、待办提取与回顾。
     </div>
   </div>
 
@@ -444,8 +438,8 @@ svg{display:block}
 
     <div class="card" data-od-id="spec-principles">
       <h3>三条原则 Principles</h3>
-      <p class="pr no"><b>不画录音。</b>没有录音键、声波、时长、麦克风大图标。语音只存在于键盘上被强调的听写键。</p>
-      <p class="pr"><b>单一点缀色。</b>紫罗兰只用于 FAB、听写键光晕与关键状态，其余交给墨与灰阶。</p>
+      <p class="pr"><b>先记下来，再整理成章。</b>让灵感快速进入 AI 工作流，自动提炼重点、主题与下一步。</p>
+      <p class="pr"><b>单一点缀色。</b>紫罗兰只用于 FAB、AI 状态与关键动作，其余交给墨与灰阶。</p>
       <p class="pr"><b>留白即节奏。</b>衬线承担「写」，无衬线承担「用」；卡片之间留够呼吸。</p>
     </div>
   </div>
@@ -454,7 +448,7 @@ svg{display:block}
 <section class="stripwrap" data-od-id="artboards">
   <div class="striphead">
     <h2>5 屏界面</h2>
-    <span>iOS · 390 × 844pt · 纯 CSS / SVG 绘制</span>
+    <span>Android · 390 × 844dp · 纯 CSS / SVG 绘制</span>
   </div>
   <div class="strip">
 
@@ -491,9 +485,9 @@ svg{display:block}
         </div>
         <div class="feed" data-od-id="home-feed">
           <div class="seclab">今天 <em>· AI 已整理 2 条</em></div>
-          <article class="note" data-od-id="note-card-voice-entry">
-            <div class="note-t">语音入口应该交给输入法，而不是自己造一个</div>
-            <div class="note-s">与其在应用里再做一遍录音，不如把系统听写这条最短路径留给用户。我们真正该做的是「说完之后」——把散落的口语整理成能被再次找到的结构。</div>
+          <article class="note" data-od-id="note-card-idea-flow">
+            <div class="note-t">灵感先落下来，再慢慢长成章</div>
+            <div class="note-s">把零散想法交给声念，AI 会提炼重点、归纳主题，并把下一步行动整理出来。</div>
             <div class="note-m">
               <span class="note-time">14:26</span><span class="chip">产品</span>
               <span class="note-td"><svg class="ic"><use href="#i-check-sq"/></svg>4 条待办</span>
@@ -544,7 +538,7 @@ svg{display:block}
   <figure class="board" data-od-id="board-capture">
     <figcaption class="cap">
       <div class="cap-h"><span class="cap-n">02</span><span class="cap-t">快速记录页 · 核心体验</span></div>
-      <div class="cap-d">极简衬线编辑器 + 系统键盘，听写键被一圈柔和光晕轻轻点亮</div>
+      <div class="cap-d">极简衬线编辑器 + 智能整理提示，写下想法即可继续</div>
     </figcaption>
     <div class="phone" data-od-id="screen-capture">
       <div class="island"></div>
@@ -563,15 +557,15 @@ svg{display:block}
       <div class="body" data-od-id="capture-body" style="overflow:visible;display:flex;flex-direction:column">
         <div class="cap-meta">今天 14:26 · 未整理</div>
         <div class="editor" data-od-id="capture-editor">
-          <span class="ph" id="capPh">说点什么，或写点什么…</span><span id="capTx"></span><span class="caret"></span>
+          <span class="ph" id="capPh">写下此刻的想法…</span><span id="capTx"></span><span class="caret"></span>
         </div>
         <div class="aibar" data-od-id="capture-aihint">
           <svg class="ic"><use href="#i-spark"/></svg>
           <span>保存后自动整理，并提炼待办</span>
         </div>
       </div>
-      <div class="guide" data-od-id="capture-dictation-guide">
-        <span class="guide-pill">点键盘上的麦克风，直接说出来</span>
+      <div class="guide" data-od-id="capture-ai-guide">
+        <span class="guide-pill">一条记录，自动整理成章</span>
         <svg class="guide-arrow" viewBox="0 0 390 32" fill="none" stroke="currentColor"
           stroke-width="1.3" stroke-linecap="round">
           <path d="M236 2c0 12 45 6 45 20" stroke-dasharray="2.5 3.5"/>
@@ -599,7 +593,7 @@ svg{display:block}
           <div class="key fn w44" style="font-size:13px">123</div>
           <div class="key w38"><svg class="ic"><use href="#i-globe"/></svg></div>
           <div class="key sp">空格</div>
-          <div class="key mic" data-od-id="keyboard-dictation-key"><svg class="ic"><use href="#i-mic"/></svg></div>
+          <div class="key ai" data-od-id="keyboard-ai-key"><svg class="ic"><use href="#i-spark"/></svg></div>
           <div class="key w78"><svg class="ic" style="width:17px;height:17px"><use href="#i-ret"/></svg></div>
         </div>
       </div>
@@ -634,26 +628,26 @@ svg{display:block}
         <div class="d-meta">
           今天 14:26 · 原文 218 字<span class="chip ac"><svg class="ic" style="width:9px;height:9px"><use href="#i-spark"/></svg>AI 已整理</span>
         </div>
-        <h1 class="d-title">语音入口应该交给输入法，<br>而不是自己造一个</h1>
+        <h1 class="d-title">灵感先落下来，<br>再慢慢长成章</h1>
         <div class="d-tags">
-          <span class="chip">产品</span><span class="chip">输入方式</span><span class="chip">周一讨论</span>
+          <span class="chip">产品</span><span class="chip">灵感整理</span><span class="chip">周一讨论</span>
         </div>
         <div class="d-sum" data-od-id="detail-ai-summary">
           <div class="d-sum-l"><svg class="ic"><use href="#i-spark"/></svg>AI 摘要</div>
-          <p>团队确认不自建录音模块，语音输入交由系统输入法听写完成；产品重心放在「说完之后」的整理与提炼上。下一步收敛记录入口，只保留一个。</p>
+          <p>声念把一段零散记录整理成清晰的主题、摘要与行动项，并保留可回溯的关联。重要想法不再散落，下一步也更加明确。</p>
         </div>
         <div class="d-body" data-od-id="detail-content">
           <div class="d-sec">
-            <h2 class="d-h"><b>01</b>为什么不自己做录音</h2>
-            <p class="d-p">系统听写已经足够好，也更快。再造一遍只会多出一层学习成本，用户还得先想清楚要点哪个按钮。</p>
+            <h2 class="d-h"><b>01</b>先记下来，再整理成章</h2>
+            <p class="d-p">记录不需要先整理格式。声念会自动提炼标题、摘要、分类与关键词，让每条想法从第一天就清晰可读。</p>
           </div>
           <div class="d-sec">
             <h2 class="d-h"><b>02</b>真正的价值在整理之后</h2>
-            <p class="d-p">人在说的时候不会考虑格式，痛点出现在事后——找不到、想不起、用不上。结构化和提炼才是我们该做的事。</p>
+            <p class="d-p">从一段想法中识别可执行事项，自动生成优先级、截止时间与提醒，让灵感自然变成今天能完成的行动。</p>
           </div>
           <div class="d-sec">
             <h2 class="d-h"><b>03</b>入口要收敛到一个</h2>
-            <p class="d-p">首页只留底部中央那颗按钮，记录页只提示听写键。</p>
+            <p class="d-p">首页只保留清晰的记录入口，保存后自动进入整理流程，随后就能继续记录下一条。</p>
           </div>
         </div>
         <div class="d-td" data-od-id="detail-extracted-todos">
@@ -663,7 +657,7 @@ svg{display:block}
           </div>
           <div class="d-row">
             <i class="d-dot"></i>
-            <span class="d-row-t">关掉录音相关的实验分支，同步给设计</span>
+            <span class="d-row-t">整理本周产品讨论的行动项</span>
             <button class="d-add">加入待办</button>
           </div>
           <div class="d-row">
@@ -673,7 +667,7 @@ svg{display:block}
           </div>
           <div class="d-row on">
             <i class="d-dot"></i>
-            <span class="d-row-t">听写提示文案找文案同学过一版</span>
+            <span class="d-row-t">邀请团队试用语义关联</span>
             <button class="d-add on"><svg class="ic"><use href="#i-check"/></svg>已加入</button>
           </div>
           <div class="d-row">
@@ -719,7 +713,7 @@ svg{display:block}
             <div class="t-row">
               <button class="box" aria-label="完成"><svg class="ic"><use href="#i-check"/></svg></button>
               <div class="t-main">
-                <div class="t-t"><span>关掉录音相关的实验分支，同步给设计</span><i class="pri hi">高</i></div>
+                <div class="t-t"><span>整理本周产品讨论的行动项</span><i class="pri hi">高</i></div>
                 <div class="t-sub">
                   <span class="t-src"><svg class="ic"><use href="#i-note-link"/></svg>来自：周一产品讨论</span>
                   <span class="t-due">今天 18:00</span>
@@ -739,7 +733,7 @@ svg{display:block}
             <div class="t-row on">
               <button class="box" aria-label="完成"><svg class="ic"><use href="#i-check"/></svg></button>
               <div class="t-main">
-                <div class="t-t"><span>听写提示文案找文案同学过一版</span></div>
+                <div class="t-t"><span>邀请团队试用语义关联</span></div>
                 <div class="t-sub">
                   <span class="t-src"><svg class="ic"><use href="#i-note-link"/></svg>来自：周一产品讨论</span>
                 </div>
@@ -858,7 +852,7 @@ svg{display:block}
             <span class="mod-n">近 30 天</span>
           </div>
           <div class="cloud">
-            <span class="kw s1">输入法</span><span class="kw s2">灵感</span><span class="kw s4">单手可达</span>
+            <span class="kw s1">自动整理</span><span class="kw s2">灵感</span><span class="kw s4">单手可达</span>
             <span class="kw s3">整理</span><span class="kw s5">留白</span><span class="kw s2">待办</span>
             <span class="kw s4">信息密度</span><span class="kw s3">衬线</span>
             <span class="kw s4">收敛入口</span><span class="kw s5">通勤</span>
@@ -903,7 +897,7 @@ svg{display:block}
   });
 
   /* ---- 02 编辑器打字动效（进入视口时播放一次） ---- */
-  var txt='语音入口应该交给输入法，我们不自己造录音。真正该做的是把说完的话整理成能被再次找到的结构。',
+  var txt='刚才在地铁上想到，灵感工具的价值不只是保存，而是让每个想法都能被整理、连接，最后变成下一步行动。',
       ph=document.getElementById('capPh'), tx=document.getElementById('capTx'), played=false;
   function type(){
     if(played) return; played=true;
