@@ -11,6 +11,7 @@ import com.voiceink.app.data.local.dao.NoteDao
 import com.voiceink.app.data.local.dao.TagDao
 import com.voiceink.app.data.local.entity.NoteEmbeddingEntity
 import com.voiceink.app.data.local.entity.NoteLinkEntity
+import kotlinx.coroutines.CancellationException
 import java.nio.ByteBuffer
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -66,11 +67,18 @@ class LinkDiscovery @Inject constructor(
     suspend fun discoverFor(noteId: Long) {
         if (!settings.isLinkDiscoveryEnabled()) return
         val note = notes.byId(noteId) ?: return
+        val expectedUpdatedAt = note.updatedAt
+        val expectedContent = note.content
+        val expectedRawContent = note.rawContent
 
         // ① Embedding 计算并入库（失败不阻塞，走降级）
         val ep = embeddingClient.currentEndpoint()
         val newVec = embeddingClient.embedOrNull(note.title + "\n" + note.summary.orEmpty())
-            ?.also { embeddings.upsert(NoteEmbeddingEntity(noteId, it.toBytes(), ep.model)) }
+            ?.also {
+                if (isCurrent(noteId, expectedUpdatedAt, expectedContent, expectedRawContent)) {
+                    embeddings.upsert(NoteEmbeddingEntity(noteId, it.toBytes(), ep.model))
+                }
+            }
 
         // ② 候选召回（两路并集；上限 20）
         val candidates = mutableMapOf<Long, Float>()
@@ -103,7 +111,7 @@ class LinkDiscovery @Inject constructor(
         // ③ LLM 复核
         val digests = notes.allDigests(excludeId = noteId).filter { it.id in trimmed.keys }
         if (digests.isEmpty()) return
-        val judged = runCatching {
+        val judged = try {
             gateway.complete(
                 LlmRequest(
                     system = Prompts.LINK_JUDGE,
@@ -120,9 +128,14 @@ class LinkDiscovery @Inject constructor(
                     maxTokens = 512
                 )
             )
-        }.getOrNull()?.let { JsonExtractor.extractLinks(it.text) } ?: emptyList()
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            null
+        }?.let { JsonExtractor.extractLinks(it.text) } ?: emptyList()
 
         // ④ 落库（双向两行）
+        if (!isCurrent(noteId, expectedUpdatedAt, expectedContent, expectedRawContent)) return
         val now = System.currentTimeMillis()
         val rows = mutableListOf<NoteLinkEntity>()
         val judgedIds = judged.map { it.first }.toSet()
@@ -139,5 +152,17 @@ class LinkDiscovery @Inject constructor(
                 rows += NoteLinkEntity(id, noteId, s, "语义高度相似", createdAt = now)
             }
         if (rows.isNotEmpty()) links.upsertAll(rows)
+    }
+
+    private suspend fun isCurrent(
+        noteId: Long,
+        expectedUpdatedAt: Long,
+        expectedContent: String,
+        expectedRawContent: String
+    ): Boolean {
+        val current = notes.byId(noteId) ?: return false
+        return current.updatedAt == expectedUpdatedAt &&
+            current.content == expectedContent &&
+            current.rawContent == expectedRawContent
     }
 }

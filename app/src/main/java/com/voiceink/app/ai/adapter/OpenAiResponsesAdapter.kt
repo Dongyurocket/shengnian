@@ -71,7 +71,17 @@ class OpenAiResponsesAdapter @Inject constructor(
                 add(buildJsonObject {
                     put("role", "user")
                     putJsonArray("content") {
-                        add(buildJsonObject { put("type", "input_text"); put("text", request.user) })
+                        add(buildJsonObject {
+                            put("type", "input_text")
+                            put("text", request.user)
+                        })
+                        request.images.forEach { image ->
+                            add(buildJsonObject {
+                                put("type", "input_image")
+                                put("image_url", image.dataUrl())
+                                put("detail", "auto")
+                            })
+                        }
                     }
                 })
             }

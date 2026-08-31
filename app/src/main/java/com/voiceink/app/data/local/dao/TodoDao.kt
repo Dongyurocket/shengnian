@@ -32,6 +32,24 @@ interface TodoDao {
     @Query("SELECT * FROM todos WHERE sourceNoteId = :noteId ORDER BY done ASC, createdAt ASC")
     fun observeForNote(noteId: Long): Flow<List<TodoEntity>>
 
+    @Query("SELECT * FROM todos WHERE sourceNoteId = :noteId ORDER BY done ASC, createdAt ASC")
+    suspend fun listForNote(noteId: Long): List<TodoEntity>
+
+    @Query("SELECT * FROM todos WHERE sourceNoteId = :noteId AND done = 0 AND content = :content LIMIT 1")
+    suspend fun findOpenForNoteByContent(noteId: Long, content: String): TodoEntity?
+
+    @Query("UPDATE todos SET sourceNoteId = NULL WHERE id = :id")
+    suspend fun detachFromNote(id: Long)
+
+    @Query("SELECT * FROM todos WHERE sourceNoteId = :noteId AND done = 0 ORDER BY createdAt ASC")
+    suspend fun listOpenForNote(noteId: Long): List<TodoEntity>
+
+    @Query("DELETE FROM todos WHERE sourceNoteId = :noteId AND done = 0")
+    suspend fun deleteOpenForNote(noteId: Long)
+
+    @Query("DELETE FROM todos WHERE sourceNoteId = :noteId")
+    suspend fun deleteForNote(noteId: Long)
+
     @Query("SELECT sourceNoteId AS noteId, COUNT(*) AS openCount FROM todos WHERE sourceNoteId IS NOT NULL AND done = 0 GROUP BY sourceNoteId")
     fun observeOpenCountsPerNote(): Flow<List<NoteTodoCount>>
 

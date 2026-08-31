@@ -36,11 +36,13 @@ class LinkScanWorker @AssistedInject constructor(
         } else {
             settings.lastLinkScan()
         }
-        return runCatching {
+        return try {
             notes.readyIdsSince(since).forEach { linkDiscovery.discoverFor(it) }
             settings.setLastLinkScan(System.currentTimeMillis())
             Result.success()
-        }.getOrElse {
+        } catch (cancelled: kotlinx.coroutines.CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
             if (runAttemptCount < 3) Result.retry() else Result.failure()
         }
     }

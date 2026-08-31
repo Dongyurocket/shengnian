@@ -103,6 +103,35 @@ class JsonExtractorTest {
     }
 
     @Test
+    fun `灵感标记优先读取布尔字段并兼容旧类型`() {
+        val explicit = JsonExtractor.extractIntent(
+            """{"intent":"note","title":"t","content":"c","type":"总结","is_inspiration":true}"""
+        ) as ParsedIntent.Note
+        assertTrue(explicit.isInspiration)
+
+        val legacy = JsonExtractor.extractIntent(
+            """{"intent":"note","title":"t","content":"c","type":"灵感"}"""
+        ) as ParsedIntent.Note
+        assertTrue(legacy.isInspiration)
+    }
+
+
+    @Test
+    fun `结构化字段限制长度数量并过滤未知枚举`() {
+        val tags = (1..20).joinToString(",") { "\"${"t".repeat(50)}$it\"" }
+        val todos = (1..6).joinToString(",") { "\"${"todo".repeat(100)}$it\"" }
+        val note = JsonExtractor.extractIntent(
+            """{"intent":"note","title":"${"标题".repeat(200)}","content":"正文","type":"未知","mood":"未知","tags":[$tags],"todos":[$todos]}"""
+        ) as ParsedIntent.Note
+        assertTrue(note.title.length <= 180)
+        assertNull(note.type)
+        assertNull(note.mood)
+        assertEquals(8, note.tags.size)
+        assertEquals(3, note.todos.size)
+        assertTrue(note.todos.all { it.length <= 240 })
+    }
+
+    @Test
     fun `关联复核输出解析`() {
         val r = JsonExtractor.extractLinks("""{"related":[{"id":17,"reason":"同一项目"},{"id":9}]}""")
         assertEquals(listOf(17L to "同一项目", 9L to ""), r)

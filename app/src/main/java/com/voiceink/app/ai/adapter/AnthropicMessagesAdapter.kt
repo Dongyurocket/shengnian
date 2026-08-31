@@ -47,7 +47,20 @@ class AnthropicMessagesAdapter @Inject constructor(
                 add(buildJsonObject {
                     put("role", "user")
                     putJsonArray("content") {
-                        add(buildJsonObject { put("type", "text"); put("text", request.user) })
+                        add(buildJsonObject {
+                            put("type", "text")
+                            put("text", request.user)
+                        })
+                        request.images.forEach { image ->
+                            add(buildJsonObject {
+                                put("type", "image")
+                                putJsonObject("source") {
+                                    put("type", "base64")
+                                    put("media_type", image.mimeType)
+                                    put("data", image.base64)
+                                }
+                            })
+                        }
                     }
                 })
                 // JSON 预填：强制模型从 '{' 后续写

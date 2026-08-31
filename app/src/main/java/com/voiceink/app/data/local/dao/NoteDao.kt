@@ -29,11 +29,17 @@ interface NoteDao {
         LEFT JOIN note_tags nt ON nt.noteId = n.id
         WHERE (:category IS NULL OR n.category = :category)
           AND (:tag IS NULL OR nt.tag = :tag)
+          AND (:inspiration IS NULL OR n.isInspiration = :inspiration)
           AND (:keyword IS NULL OR n.title LIKE '%'||:keyword||'%'
                OR n.content LIKE '%'||:keyword||'%' OR nt.tag LIKE '%'||:keyword||'%')
         ORDER BY n.createdAt DESC
     """)
-    fun observeFiltered(category: String?, tag: String?, keyword: String?): Flow<List<NoteEntity>>
+    fun observeFiltered(
+        category: String?,
+        tag: String? = null,
+        keyword: String? = null,
+        inspiration: Boolean? = null
+    ): Flow<List<NoteEntity>>
 
     @Query("SELECT * FROM notes WHERE id = :id")
     fun observeById(id: Long): Flow<NoteEntity?>
@@ -61,9 +67,66 @@ interface NoteDao {
     @Query("UPDATE notes SET status = 'AI_FAILED', updatedAt = :now WHERE id = :id")
     suspend fun markFailed(id: Long, now: Long = System.currentTimeMillis())
 
-    @Query("""UPDATE notes SET title = :title, content = :content, category = :category,
-        type = :type, mood = :mood, summary = :summary,
-        status = 'READY', updatedAt = :now WHERE id = :id""")
+    /** 只把失败状态写回到发起请求后没有被用户改动的那一版笔记。 */
+    @Query("""
+        UPDATE notes SET status = 'AI_FAILED', updatedAt = :now
+        WHERE id = :id AND status IN ('PENDING_AI', 'AI_FAILED')
+          AND updatedAt = :expectedUpdatedAt
+          AND content = :expectedContent
+          AND rawContent = :expectedRawContent
+          AND ((intentHint = :expectedIntentHint) OR
+               (intentHint IS NULL AND :expectedIntentHint IS NULL))
+    """)
+    suspend fun markFailedIfCurrent(
+        id: Long,
+        expectedUpdatedAt: Long,
+        expectedContent: String,
+        expectedRawContent: String,
+        expectedIntentHint: String?,
+        now: Long = System.currentTimeMillis()
+    ): Int
+
+    @Query("""
+        UPDATE notes SET title = :title, content = :content, rawContent = :rawContent,
+            status = 'READY', intentHint = NULL, updatedAt = :now WHERE id = :id
+    """)
+    suspend fun saveDraft(
+        id: Long,
+        title: String,
+        content: String,
+        rawContent: String,
+        now: Long = System.currentTimeMillis()
+    )
+
+    @Query("""
+        UPDATE notes SET title = :title, content = :content, rawContent = :rawContent,
+            status = 'PENDING_AI', intentHint = 'note', updatedAt = :now WHERE id = :id
+    """)
+    suspend fun prepareForReorganization(
+        id: Long,
+        title: String,
+        content: String,
+        rawContent: String,
+        now: Long = System.currentTimeMillis()
+    )
+
+    /** 返回受影响行数，0 表示请求期间笔记已被用户改动。 */
+    @Query("""
+        UPDATE notes SET title = :title, content = :content, category = :category,
+            type = :type, mood = :mood, summary = :summary, isInspiration = :isInspiration,
+            status = 'READY', updatedAt = :now
+        WHERE id = :id AND status IN ('PENDING_AI', 'AI_FAILED')
+          AND (
+            :expectedUpdatedAt IS NULL OR (
+                updatedAt = :expectedUpdatedAt
+                AND content = :expectedContent
+                AND rawContent = :expectedRawContent
+                AND ((intentHint = :expectedIntentHint) OR
+                     (intentHint IS NULL AND :expectedIntentHint IS NULL))
+                AND (SELECT COUNT(*) FROM note_attachments WHERE noteId = :id) = :expectedAttachmentCount
+            )
+          )
+    """)
     suspend fun applyOrganization(
         id: Long,
         title: String,
@@ -72,8 +135,36 @@ interface NoteDao {
         type: String?,
         mood: String?,
         summary: String?,
+        isInspiration: Boolean,
+        expectedUpdatedAt: Long?,
+        expectedContent: String?,
+        expectedRawContent: String?,
+        expectedIntentHint: String?,
+        expectedAttachmentCount: Int?,
         now: Long = System.currentTimeMillis()
-    )
+    ): Int
+
+    @Query("DELETE FROM note_diagrams WHERE noteId = :id")
+    suspend fun clearDiagramsFor(id: Long)
+
+    @Query("""
+        DELETE FROM notes
+        WHERE id = :id AND status IN ('PENDING_AI', 'AI_FAILED')
+          AND updatedAt = :expectedUpdatedAt
+          AND content = :expectedContent
+          AND rawContent = :expectedRawContent
+          AND ((intentHint = :expectedIntentHint) OR
+               (intentHint IS NULL AND :expectedIntentHint IS NULL))
+          AND (SELECT COUNT(*) FROM note_attachments WHERE noteId = :id) = :expectedAttachmentCount
+    """)
+    suspend fun deleteIfCurrent(
+        id: Long,
+        expectedUpdatedAt: Long,
+        expectedContent: String,
+        expectedRawContent: String,
+        expectedIntentHint: String?,
+        expectedAttachmentCount: Int
+    ): Int
 
     @Query("DELETE FROM notes WHERE id = :id")
     suspend fun deleteById(id: Long)

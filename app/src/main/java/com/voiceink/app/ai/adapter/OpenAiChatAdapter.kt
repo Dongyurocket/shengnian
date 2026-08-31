@@ -71,11 +71,32 @@ class OpenAiChatAdapter @Inject constructor(
     ): JsonObject = buildJsonObject {
         put("model", endpoint.model)
         putJsonArray("messages") {
-            add(kotlinx.serialization.json.buildJsonObject {
-                put("role", "system"); put("content", request.system)
+            add(buildJsonObject {
+                put("role", "system")
+                put("content", request.system)
             })
-            add(kotlinx.serialization.json.buildJsonObject {
-                put("role", "user"); put("content", request.user)
+            add(buildJsonObject {
+                put("role", "user")
+                if (request.images.isEmpty()) {
+                    // 保持纯文本请求的兼容 payload。
+                    put("content", request.user)
+                } else {
+                    putJsonArray("content") {
+                        add(buildJsonObject {
+                            put("type", "text")
+                            put("text", request.user)
+                        })
+                        request.images.forEach { image ->
+                            add(buildJsonObject {
+                                put("type", "image_url")
+                                putJsonObject("image_url") {
+                                    put("url", image.dataUrl())
+                                    put("detail", "auto")
+                                }
+                            })
+                        }
+                    }
+                }
             })
         }
         if (useResponseFormat) {

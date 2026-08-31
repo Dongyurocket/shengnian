@@ -21,10 +21,11 @@ android {
 
     defaultConfig {
         applicationId = "com.voiceink.app"
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         minSdk = 24
         targetSdk = 35
-        versionCode = 4
-        versionName = "0.2.1"
+        versionCode = 5
+        versionName = "0.3.0"
     }
 
     buildFeatures {
@@ -44,6 +45,10 @@ android {
     }
 
     buildTypes {
+        debug {
+            // 与手机上可能已安装的正式/旧签名版本并存，便于设备验收而不删除用户数据。
+            applicationIdSuffix = ".test"
+        }
         release {
             isMinifyEnabled = false
             // 配了签名信息才签名（CI/他人构建可跳过）
@@ -103,4 +108,7 @@ dependencies {
     testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.8.1")
     testImplementation("io.mockk:mockk:1.13.11")
+    androidTestImplementation("androidx.test.ext:junit:1.2.1")
+    androidTestImplementation("androidx.test:core-ktx:1.6.1")
+    androidTestImplementation("androidx.test:runner:1.6.2")
 }

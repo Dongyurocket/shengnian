@@ -1,5 +1,8 @@
 package com.voiceink.app.ui.capture
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -19,6 +22,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AutoAwesome
+import androidx.compose.material.icons.outlined.Image
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -44,6 +48,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.voiceink.app.core.TimeUtils
+import com.voiceink.app.ui.detail.PendingAttachmentStrip
 import com.voiceink.app.ui.theme.Accent
 import com.voiceink.app.ui.theme.Accent06
 import com.voiceink.app.ui.theme.Accent12
@@ -67,6 +72,10 @@ fun CaptureScreen(
     val focusRequester = remember { FocusRequester() }
     val keyboard = LocalSoftwareKeyboardController.current
     val todoMode = mode == "todo"
+    val imagePicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.PickMultipleVisualMedia(4)
+    ) { uris -> vm.addImages(uris) }
+    val canSave = !vm.saving && (vm.text.isNotBlank() || vm.pendingImages.isNotEmpty())
 
     // 进入即弹键盘
     LaunchedEffect(Unit) {
@@ -101,22 +110,40 @@ fun CaptureScreen(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                "取消",
+                if (vm.saving) "保存中…" else "取消",
                 fontSize = 15.5.sp,
-                color = Muted,
+                color = if (vm.saving) Faint else Muted,
                 modifier = Modifier
-                    .clickable(onClick = onDone)
+                    .clickable(enabled = !vm.saving, onClick = onDone)
                     .padding(vertical = 6.dp)
             )
-            Text(
-                "完成",
-                fontSize = 15.5.sp,
-                color = Accent,
-                fontWeight = FontWeight.SemiBold,
-                modifier = Modifier
-                    .clickable { vm.saveAndContinue(if (todoMode) "todo" else null) }
-                    .padding(vertical = 6.dp)
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Outlined.Image,
+                    contentDescription = "插入图片",
+                    tint = Accent,
+                    modifier = Modifier
+                        .size(24.dp)
+                        .clickable {
+                            imagePicker.launch(
+                                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                            )
+                        }
+                        .padding(3.dp)
+                )
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    "完成",
+                    fontSize = 15.5.sp,
+                    color = if (canSave) Accent else Faint,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier
+                        .clickable(enabled = canSave) {
+                            vm.saveAndContinue(if (todoMode) "todo" else null)
+                        }
+                        .padding(vertical = 6.dp)
+                )
+            }
         }
 
         Column(
@@ -133,6 +160,14 @@ fun CaptureScreen(
                 letterSpacing = 0.5.sp,
                 modifier = Modifier.padding(top = 2.dp, bottom = 14.dp)
             )
+
+            if (vm.pendingImages.isNotEmpty()) {
+                PendingAttachmentStrip(
+                    uris = vm.pendingImages,
+                    onRemove = vm::removeImage,
+                    modifier = Modifier.padding(bottom = 12.dp)
+                )
+            }
 
             // 衬线编辑区（语音输入由用户输入法完成）
             BasicTextField(
@@ -179,10 +214,16 @@ fun CaptureScreen(
                 )
                 Spacer(Modifier.width(7.dp))
                 Text(
-                    text = if (showSaved) "已保存，AI 整理中…" else "保存后自动整理，并提炼待办",
+                    text = when {
+                        vm.saving -> "正在保存本地内容…"
+                        vm.errorMessage != null -> vm.errorMessage!!
+                        showSaved -> "已保存，AI 整理中…"
+                        else -> "保存后自动整理，并提炼待办"
+                    },
                     fontSize = 11.5.sp,
                     color = Accent,
-                    letterSpacing = 0.2.sp
+                    letterSpacing = 0.2.sp,
+                    modifier = Modifier.weight(1f)
                 )
             }
         }

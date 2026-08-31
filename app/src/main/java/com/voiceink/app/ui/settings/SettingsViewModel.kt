@@ -106,14 +106,24 @@ class SettingsViewModel @Inject constructor(
     fun exportTo(uri: Uri) {
         viewModelScope.launch {
             _ui.update { it.copy(exportResult = "导出中…") }
-            val result = runCatching { exporter.exportAll(uri) }
-            _ui.update {
-                it.copy(
-                    exportResult = result.fold(
-                        onSuccess = { n -> "已导出 $n 条笔记（Markdown + shengnian-backup.json）" },
-                        onFailure = { e -> "导出失败：${e.message?.take(60)}" }
+            try {
+                val result = exporter.exportAll(uri)
+                _ui.update {
+                    it.copy(
+                        exportResult = buildString {
+                            append("已导出 ").append(result.noteCount).append(" 条笔记")
+                            if (result.attachmentFailures > 0) {
+                                append("，").append(result.attachmentFailures).append(" 个附件失败")
+                            } else {
+                                append("（含附件与 JSON）")
+                            }
+                        }
                     )
-                )
+                }
+            } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                throw cancelled
+            } catch (error: Exception) {
+                _ui.update { it.copy(exportResult = "导出失败：${error.message?.take(60).orEmpty()}") }
             }
         }
     }
@@ -137,30 +147,31 @@ class SettingsViewModel @Inject constructor(
             _ui.update {
                 it.copy(update = UpdateUiState(checking = true))
             }
-            runCatching { updateChecker.check() }
-                .onSuccess { info ->
-                    _ui.update {
-                        it.copy(
-                            update = if (info == null) {
-                                UpdateUiState(message = "已是最新版本")
-                            } else {
-                                UpdateUiState(
-                                    message = "发现 v${info.version}",
-                                    available = info
-                                )
-                            }
-                        )
-                    }
-                }
-                .onFailure { error ->
-                    _ui.update {
-                        it.copy(
-                            update = UpdateUiState(
-                                message = "检查失败：${error.message?.take(60).orEmpty()}"
+            try {
+                val info = updateChecker.check()
+                _ui.update {
+                    it.copy(
+                        update = if (info == null) {
+                            UpdateUiState(message = "已是最新版本")
+                        } else {
+                            UpdateUiState(
+                                message = "发现 v${info.version}",
+                                available = info
                             )
-                        )
-                    }
+                        }
+                    )
                 }
+            } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                throw cancelled
+            } catch (error: Exception) {
+                _ui.update {
+                    it.copy(
+                        update = UpdateUiState(
+                            message = "检查失败：${error.message?.take(60).orEmpty()}"
+                        )
+                    )
+                }
+            }
         }
     }
 
@@ -179,27 +190,28 @@ class SettingsViewModel @Inject constructor(
             _ui.update {
                 it.copy(update = UpdateUiState(message = "正在准备下载 v${info.version}…"))
             }
-            runCatching { appUpdater.download(apkUrl, info.version) }
-                .onSuccess {
-                    _ui.update {
-                        it.copy(
-                            update = UpdateUiState(
-                                message = "已开始下载 v${info.version}，完成后点击通知安装",
-                                downloadQueued = true
-                            )
+            try {
+                appUpdater.download(apkUrl, info.version)
+                _ui.update {
+                    it.copy(
+                        update = UpdateUiState(
+                            message = "已开始下载 v${info.version}，完成后点击通知安装",
+                            downloadQueued = true
                         )
-                    }
+                    )
                 }
-                .onFailure { error ->
-                    _ui.update {
-                        it.copy(
-                            update = UpdateUiState(
-                                message = "下载失败：${error.message?.take(60).orEmpty()}",
-                                available = info
-                            )
+            } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                throw cancelled
+            } catch (error: Exception) {
+                _ui.update {
+                    it.copy(
+                        update = UpdateUiState(
+                            message = "下载失败：${error.message?.take(60).orEmpty()}",
+                            available = info
                         )
-                    }
+                    )
                 }
+            }
         }
     }
 

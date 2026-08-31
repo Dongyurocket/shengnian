@@ -55,13 +55,17 @@ class EmbeddingClient @Inject constructor(
                 .header("Authorization", "Bearer ${ep.apiKey}")
                 .post(payload.toRequestBody("application/json".toMediaType()))
                 .build()
-            runCatching {
+            try {
                 client.newCall(req).execute().use { resp ->
                     if (!resp.isSuccessful) return@use null
                     val root = AppJson.parseToJsonElement(resp.body?.string().orEmpty()).jsonObject
                     root["data"]!!.jsonArray.first().jsonObject["embedding"]!!.jsonArray
                         .map { it.jsonPrimitive.float }.toFloatArray()
                 }
-            }.getOrNull()
+            } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                null
+            }
         }
 }

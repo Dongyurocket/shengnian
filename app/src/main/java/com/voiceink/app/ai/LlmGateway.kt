@@ -3,7 +3,11 @@ package com.voiceink.app.ai
 import com.voiceink.app.ai.adapter.LlmAdapterFactory
 import com.voiceink.app.ai.adapter.LlmException
 import com.voiceink.app.data.repo.SettingsRepository
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
+import java.io.IOException
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -35,6 +39,18 @@ class LlmGateway @Inject constructor(
                     delay(delayMs)
                     delayMs *= 2
                 }
+            } catch (e: IOException) {
+                // OkHttp 的阻断/超时也应交给 WorkManager 前的网关短暂重试。
+                currentCoroutineContext().ensureActive()
+                lastError = LlmException(
+                    httpCode = -1,
+                    message = "网络请求失败：${e.message?.take(120).orEmpty()}",
+                    retriable = true
+                )
+                if (attempt < 2) {
+                    delay(delayMs)
+                    delayMs *= 2
+                }
             }
         }
         throw lastError ?: error("unreachable")
@@ -60,6 +76,8 @@ class LlmGateway @Inject constructor(
             connectionTestMessage(r.text)
         } catch (e: LlmException) {
             "失败（HTTP ${e.httpCode}）：${e.message?.take(80)}"
+        } catch (cancelled: CancellationException) {
+            throw cancelled
         } catch (e: Exception) {
             "失败：${e.message?.take(80)}"
         }

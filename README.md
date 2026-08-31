@@ -11,15 +11,19 @@
 ## 核心优势
 
 - **从灵感到行动一条链**：笔记、待办、提醒和来源回溯在同一条工作流里完成，减少在多个工具之间切换。
-- **AI 整理结果可直接使用**：自动生成标题、摘要、分类、标签和重点内容，也能从长记录中提炼明确的行动项。
-- **个人知识持续生长**：向量、标签与实体多路发现相关笔记，建立双向链接，让旧内容在新想法出现时重新获得价值。
+- **AI 整理结果可直接使用**：自动生成标题、摘要、分类、标签和重点内容，也能从长记录中提炼明确的行动项；链接正文和图片信息会作为受控参考资料参与整理。
+- **灵感可以继续生长**：标记灵感、筛选灵感流、查看相关笔记，并可选择多条已有笔记交给 AI 合并为新的整理稿。
 - **本地优先，节奏稳定**：输入先落库，AI 整理异步执行；网络波动时可以重试，提醒与洞察始终围绕本地数据运行。
-- **按自己的模型工作**：支持 OpenAI Chat、Responses、Anthropic 三种协议，可连接官方服务、兼容平台与本地模型。
+- **链接与图片一起理解**：输入中的 HTTP(S) 页面会提取标题和正文；速记页与详情页支持最多 4 张图片，图片复制到本地后交给视觉模型识别，失败时原附件仍保留。
+- **图表与合并**：详情页可生成受校验的流程图 / 思维导图；首页可多选已整理笔记，生成新的合并笔记而不删除原文。
 
 ## 特性
 
 - **极速记录**：首页中央 FAB 直达速记页，进入即弹键盘；系统分享菜单一键收文本；桌面长按快捷方式「新建灵感 / 新建待办」
 - **AI 意图分流**：一次调用区分「笔记 / 待办」。待办自动生成截止时间并设本地闹钟；笔记自动整理出标题、分类、类型、情绪、标签、摘要，并提炼其中可执行的待办
+- **链接、图片与图表**：HTTP(S) 链接提取标题/正文后参与整理；Photo Picker 图片复制到应用私有目录并按视觉请求发送；详情页可生成流程图或思维导图，结果以受校验 JSON 和原生 Canvas 保存
+- **灵感归类与合并**：AI 输出灵感标记，首页可筛选灵感；选择多条 READY 笔记后生成新的合并笔记，原笔记、附件和来源不删除
+- **编辑后二次整理**：详情页可修改标题和正文、增删图片，并选择仅保存或保存后重新交给 AI 整理
 - **三协议自由接入**：OpenAI Chat Completions / OpenAI Responses / Anthropic Messages，Base URL 任意填——官方 API、DeepSeek、各类中转、本地 Ollama 均可
 - **语义关联网络**：独立的 Embedding 配置（任何 OpenAI 兼容端点），三路召回（向量余弦 / 标签 Jaccard / 实体重合）+ LLM 复核，自动建立笔记双向链接并给出关联理由
 - **本地提醒**：AlarmManager 精确闹钟（杀进程可达）、开机重排、通知内「完成 / 延期 10 分钟」
@@ -39,12 +43,14 @@ Kotlin 2.x · Jetpack Compose (Material3) · Room · WorkManager · Hilt · OkHt
 
 ```
 UI (Compose) → ViewModel (StateFlow) → 领域层 (CaptureController / AiPipeline / LlmGateway / LinkDiscovery / ReminderScheduler)
-                                    → 数据层 (Room × 7 表 / DataStore / Keystore)
+                                    → 数据层 (Room × 10 表 / DataStore / Keystore)
 ```
 
 - **AI 层适配器模式**：`LlmAdapter` 统一接口收敛三协议差异为 `LlmRequest / LlmResult`，JSON 输出三级兜底（schema 约束 → 助手预填 → 解析兜底）
 - **离线可靠**：输入先落库（PENDING_AI），AI 流水线走 WorkManager（联网约束 + 指数退避），失败可重试、数据永不丢
-- 详细设计决策见 [`docs/plans/2026-08-30-ai-voice-note-app.md`](docs/plans/2026-08-30-ai-voice-note-app.md)
+- **视觉模型限制**：图片识别与图表生成依赖用户在设置页配置的支持相应能力的模型；端点不支持视觉时保留本地附件并显示失败状态
+- **HTTP 边界**：为兼容局域网模型和用户记录中的 HTTP 链接，应用允许明文 HTTP；网页抓取会拒绝本机、私网、保留地址和带凭据 URL，并手动限制重定向次数。仅应连接自己信任的地址，公开服务优先使用 HTTPS
+- 详细设计决策见 [`docs/plans/2026-08-30-ai-voice-note-app.md`](docs/plans/2026-08-30-ai-voice-note-app.md) 与后续增量计划 [`docs/plans/2026-08-31-voice-note-incremental.md`](docs/plans/2026-08-31-voice-note-incremental.md)
 
 ## 构建
 
@@ -52,7 +58,11 @@ UI (Compose) → ViewModel (StateFlow) → 领域层 (CaptureController / AiPipe
 
 ```bash
 ./gradlew :app:assembleDebug        # 调试包
-./gradlew :app:testDebugUnitTest    # 单元测试（44 个：三协议契约 / DeepSeek Schema 与思考模式 / JSON 兜底 / 关联算法 / GitHub Release 解析与版本比较）
+./gradlew :app:testDebugUnitTest    # JVM 单元测试（68 个：三协议契约 / 多模态 payload / DeepSeek Schema 与思考模式 / JSON 兜底 / URL、HTML 与主机安全策略 / 图表校验 / 合并输入 / 关联算法 / GitHub Release 解析与版本比较）
+./gradlew :app:compileDebugAndroidTestKotlin # instrumentation 测试编译（含真实 v3→v4 Room migration）
+./gradlew :app:connectedDebugAndroidTest    # 连接真实设备或模拟器后运行 instrumentation 测试
+
+Debug APK 使用 `com.voiceink.app.test`，用于与手机上已有的正式包并存；Release 仍使用 `com.voiceink.app`。
 ./gradlew :app:assembleRelease      # 发布包（需在 local.properties 配置签名，见下）
 ```
 

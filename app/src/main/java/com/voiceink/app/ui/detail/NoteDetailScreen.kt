@@ -1,16 +1,24 @@
 package com.voiceink.app.ui.detail
 
+import android.content.Intent
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -23,8 +31,11 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.AutoAwesome
+import androidx.compose.material.icons.outlined.Edit
+import androidx.compose.material.icons.outlined.Image
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
@@ -38,11 +49,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.voiceink.app.ai.ImagePayloadEncoder
 import com.voiceink.app.core.TimeUtils
 import com.voiceink.app.data.local.entity.NoteStatus
 import com.voiceink.app.ui.home.MetaChip
@@ -67,6 +80,7 @@ import com.voiceink.app.ui.theme.VoiceInkTextStyles
  * +「AI 提炼的待办」列表（已加入态）+ AI_FAILED 重试入口（§4.3）。
  * 「相关笔记」区在阶段 5 接入（RelatedNotesSection）。
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun NoteDetailScreen(
     onBack: () -> Unit,
@@ -77,7 +91,18 @@ fun NoteDetailScreen(
     val tags by vm.tags.collectAsStateWithLifecycle()
     val todos by vm.extractedTodos.collectAsStateWithLifecycle()
     val related by vm.related.collectAsStateWithLifecycle()
+    val attachments by vm.attachments.collectAsStateWithLifecycle()
+    val sources by vm.sources.collectAsStateWithLifecycle()
+    val diagrams by vm.diagrams.collectAsStateWithLifecycle()
+    val diagramState by vm.diagramState.collectAsStateWithLifecycle()
+    val attachmentError by vm.attachmentError.collectAsStateWithLifecycle()
+    val attachmentBusy by vm.attachmentBusy.collectAsStateWithLifecycle()
+    val context = LocalContext.current
     var editingCategory by remember { mutableStateOf(false) }
+    var editingNote by remember { mutableStateOf(false) }
+    val imagePicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.PickVisualMedia()
+    ) { uri -> uri?.let(vm::addAttachment) }
 
     val n = note
     Column(
@@ -104,6 +129,16 @@ fun NoteDetailScreen(
                     .clickable(onClick = onBack)
                     .padding(6.dp)
             )
+            Spacer(Modifier.weight(1f))
+            if (n != null) {
+                IconButton(onClick = { editingNote = true }) {
+                    Icon(
+                        imageVector = Icons.Outlined.Edit,
+                        contentDescription = "编辑笔记",
+                        tint = Ink2
+                    )
+                }
+            }
         }
 
         if (n == null) {
@@ -145,10 +180,10 @@ fun NoteDetailScreen(
             )
 
             // 标签行：分类（可编辑）+ 标签
-            Row(
-                modifier = Modifier
-                    .padding(top = 12.dp),
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            FlowRow(
+                modifier = Modifier.padding(top = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 Box(
                     modifier = Modifier
@@ -163,9 +198,27 @@ fun NoteDetailScreen(
                         color = if (n.category != null) Muted else Accent
                     )
                 }
+                if (n.isInspiration) {
+                    MetaChip(text = "灵感")
+                }
                 for (t in tags) {
                     MetaChip(text = t)
                 }
+            }
+
+            if (attachments.isNotEmpty()) {
+                AttachmentStrip(
+                    attachments = attachments,
+                    modifier = Modifier.padding(top = 14.dp)
+                )
+            }
+            attachmentError?.let { message ->
+                Text(
+                    message,
+                    fontSize = 10.5.sp,
+                    color = Accent,
+                    modifier = Modifier.padding(top = 6.dp)
+                )
             }
 
             // AI 摘要卡（紫罗兰淡底，§11.4）
@@ -220,6 +273,22 @@ fun NoteDetailScreen(
                 NoteStatus.AI_FAILED -> StatusBar("整理失败，点击重试") { vm.retry() }
                 NoteStatus.READY -> Unit
             }
+
+            SourceLinksSection(
+                sources = sources,
+                onOpen = { url ->
+                    runCatching {
+                        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+                    }
+                }
+            )
+
+            DiagramSection(
+                diagrams = diagrams,
+                state = diagramState,
+                onGenerate = vm::generateDiagram,
+                onClearError = vm::clearDiagramError
+            )
 
             // AI 提炼的待办（§11.3：一键加入/已加入态；流水线已自动加入，展示状态）
             if (todos.isNotEmpty()) {
@@ -289,6 +358,7 @@ fun NoteDetailScreen(
             if (related.isNotEmpty()) {
                 RelatedNotesSection(
                     related = related,
+                    title = if (n.isInspiration) "灵感归类建议" else "相关笔记",
                     onOpen = onOpenNote,
                     onUnlink = { vm.unlink(it) }
                 )
@@ -303,6 +373,27 @@ fun NoteDetailScreen(
             current = note?.category,
             onDismiss = { editingCategory = false },
             onSave = { vm.updateCategory(it); editingCategory = false }
+        )
+    }
+
+    if (editingNote && n != null) {
+        NoteEditDialog(
+            note = n,
+            attachments = attachments,
+            canAddImage = attachments.size < ImagePayloadEncoder.MAX_IMAGES,
+            attachmentBusy = attachmentBusy,
+            attachmentError = attachmentError,
+            onAddImage = {
+                imagePicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+            },
+            onRemoveImage = vm::removeAttachment,
+            onDismiss = { editingNote = false },
+            onSave = { title, content ->
+                vm.saveDraft(title, content) { editingNote = false }
+            },
+            onReorganize = { title, content ->
+                vm.reorganize(title, content) { editingNote = false }
+            }
         )
     }
 }

@@ -24,14 +24,30 @@ class TodoRepository @Inject constructor(
 
     /** 修改截止时间/提前量：重算 remindAt */
     suspend fun updateSchedule(id: Long, deadline: Long?, lead: Int) {
-        val remindAt = deadline?.let { it - lead * 60_000L }
-        todoDao.updateSchedule(id, deadline, lead, remindAt)
+        val safeLead = lead.coerceIn(0, 24 * 60)
+        val remindAt = deadline
+            ?.let { it - safeLead * 60_000L }
+            ?.takeIf { it > System.currentTimeMillis() }
+        todoDao.updateSchedule(id, deadline, safeLead, remindAt)
     }
 
     /** 开机重排数据源（§10 BootReceiver） */
     suspend fun pendingReminders(): List<TodoEntity> = todoDao.pendingReminders()
 
     fun observeForNote(noteId: Long): Flow<List<TodoEntity>> = todoDao.observeForNote(noteId)
+
+    suspend fun listForNote(noteId: Long): List<TodoEntity> = todoDao.listForNote(noteId)
+
+    suspend fun deleteForNote(noteId: Long) = todoDao.deleteForNote(noteId)
+
+    suspend fun clearOpenForNote(noteId: Long) {
+        todoDao.deleteOpenForNote(noteId)
+    }
+
+    suspend fun findOpenForNoteByContent(noteId: Long, content: String): TodoEntity? =
+        todoDao.findOpenForNoteByContent(noteId, content)
+
+    suspend fun detachFromNote(id: Long) = todoDao.detachFromNote(id)
 
     fun observeOpenCountsPerNote(): Flow<Map<Long, Int>> =
         todoDao.observeOpenCountsPerNote().map { list -> list.associate { it.noteId to it.openCount } }

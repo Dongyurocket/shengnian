@@ -4,11 +4,15 @@ import android.content.Context
 import androidx.room.Room
 import com.voiceink.app.core.AppJson
 import com.voiceink.app.data.local.AppDatabase
+import com.voiceink.app.data.local.MIGRATION_3_4
+import com.voiceink.app.data.local.dao.AttachmentDao
 import com.voiceink.app.data.local.dao.CategoryDao
 import com.voiceink.app.data.local.dao.EmbeddingDao
 import com.voiceink.app.data.local.dao.LinkDao
 import com.voiceink.app.data.local.dao.NoteDao
+import com.voiceink.app.data.local.dao.SourceDao
 import com.voiceink.app.data.local.dao.TagDao
+import com.voiceink.app.data.local.dao.DiagramDao
 import com.voiceink.app.data.local.dao.TodoDao
 import dagger.Module
 import dagger.Provides
@@ -28,7 +32,8 @@ object AppModule {
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): AppDatabase =
         Room.databaseBuilder(context, AppDatabase::class.java, "voiceink.db")
-            // MVP 开发期 schema 演进频繁，直接重建；正式发版前替换为显式 Migration
+            .addMigrations(MIGRATION_3_4)
+            // 未知的开发期 schema 仍可重建；已知 v3→v4 会优先走上面的保留数据迁移。
             .fallbackToDestructiveMigration()
             .build()
 
@@ -49,6 +54,15 @@ object AppModule {
 
     @Provides
     fun provideEmbeddingDao(db: AppDatabase): EmbeddingDao = db.embeddingDao()
+
+    @Provides
+    fun provideAttachmentDao(db: AppDatabase): AttachmentDao = db.attachmentDao()
+
+    @Provides
+    fun provideSourceDao(db: AppDatabase): SourceDao = db.sourceDao()
+
+    @Provides
+    fun provideDiagramDao(db: AppDatabase): DiagramDao = db.diagramDao()
 
     @Provides
     @Singleton

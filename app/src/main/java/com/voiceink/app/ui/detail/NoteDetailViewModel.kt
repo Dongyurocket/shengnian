@@ -1,17 +1,26 @@
 package com.voiceink.app.ui.detail
 
+import android.net.Uri
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.voiceink.app.ai.diagram.DiagramGenerator
+import com.voiceink.app.ai.diagram.DiagramKind
+import com.voiceink.app.ai.ImagePayloadEncoder
 import com.voiceink.app.ai.pipeline.AiPipeline
+import com.voiceink.app.ai.pipeline.requiresNoteIntent
+import com.voiceink.app.data.local.dao.DiagramDao
 import com.voiceink.app.data.local.dao.LinkDao
 import com.voiceink.app.data.local.dao.RelatedNote
 import com.voiceink.app.data.local.dao.TagDao
 import com.voiceink.app.data.local.entity.NoteEntity
 import com.voiceink.app.data.local.entity.TodoEntity
+import com.voiceink.app.data.repo.NoteAttachmentRepository
 import com.voiceink.app.data.repo.NoteRepository
+import com.voiceink.app.data.repo.NoteSourceRepository
 import com.voiceink.app.data.repo.TodoRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
@@ -25,7 +34,11 @@ class NoteDetailViewModel @Inject constructor(
     todos: TodoRepository,
     private val tagDao: TagDao,
     private val linkDao: LinkDao,
-    private val pipeline: AiPipeline
+    private val pipeline: AiPipeline,
+    private val attachmentRepo: NoteAttachmentRepository,
+    private val sourceRepo: NoteSourceRepository,
+    private val diagramDao: DiagramDao,
+    private val diagramGenerator: DiagramGenerator
 ) : ViewModel() {
 
     private val noteId: Long = checkNotNull(savedStateHandle["noteId"])
@@ -44,6 +57,29 @@ class NoteDetailViewModel @Inject constructor(
     val related: StateFlow<List<RelatedNote>> = linkDao.observeRelated(noteId)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    val attachments = attachmentRepo.observeForNote(noteId)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val sources = sourceRepo.observeForNote(noteId)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val diagrams = diagramDao.observeForNote(noteId)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    data class DiagramUiState(
+        val loading: Boolean = false,
+        val error: String? = null
+    )
+
+    private val _diagramState = MutableStateFlow(DiagramUiState())
+    val diagramState: StateFlow<DiagramUiState> = _diagramState
+
+    private val _attachmentError = MutableStateFlow<String?>(null)
+    val attachmentError: StateFlow<String?> = _attachmentError
+
+    private val _attachmentBusy = MutableStateFlow(false)
+    val attachmentBusy: StateFlow<Boolean> = _attachmentBusy
+
     /** 手动解除关联（双向删除） */
     fun unlink(otherId: Long) {
         viewModelScope.launch { linkDao.deleteBidirectional(noteId, otherId) }
@@ -51,9 +87,79 @@ class NoteDetailViewModel @Inject constructor(
 
     fun retry() {
         viewModelScope.launch {
+            val hint = note.value?.intentHint
             notes.resetToPending(noteId)
-            pipeline.enqueue(noteId)
+            pipeline.enqueue(
+                noteId,
+                forceNote = requiresNoteIntent(hint)
+            )
         }
+    }
+
+    fun saveDraft(title: String, content: String, onDone: () -> Unit = {}) {
+        viewModelScope.launch {
+            notes.saveDraft(noteId, title, content)
+            onDone()
+        }
+    }
+
+    fun reorganize(title: String, content: String, onDone: () -> Unit = {}) {
+        viewModelScope.launch {
+            notes.prepareForReorganization(noteId, title, content)
+            pipeline.enqueue(noteId, forceNote = true)
+            onDone()
+        }
+    }
+
+    fun addAttachment(uri: Uri) {
+        if (attachments.value.size >= ImagePayloadEncoder.MAX_IMAGES) {
+            _attachmentError.value = "最多保留 ${ImagePayloadEncoder.MAX_IMAGES} 张图片"
+            return
+        }
+        if (_attachmentBusy.value) return
+        viewModelScope.launch {
+            _attachmentBusy.value = true
+            try {
+                attachmentRepo.copyFromUri(noteId, uri)
+                _attachmentError.value = null
+            } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                throw cancelled
+            } catch (error: Exception) {
+                _attachmentError.value = error.message ?: "图片保存失败"
+            } finally {
+                _attachmentBusy.value = false
+            }
+        }
+    }
+
+    fun clearAttachmentError() {
+        _attachmentError.value = null
+    }
+
+    fun removeAttachment(attachment: com.voiceink.app.data.local.entity.NoteAttachmentEntity) {
+        viewModelScope.launch {
+            attachmentRepo.delete(attachment)
+            _attachmentError.value = null
+        }
+    }
+
+    fun generateDiagram(kind: DiagramKind) {
+        if (_diagramState.value.loading) return
+        viewModelScope.launch {
+            _diagramState.value = DiagramUiState(loading = true)
+            try {
+                diagramGenerator.generate(noteId, kind)
+                _diagramState.value = DiagramUiState()
+            } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                throw cancelled
+            } catch (error: Exception) {
+                _diagramState.value = DiagramUiState(error = error.message ?: "图表生成失败")
+            }
+        }
+    }
+
+    fun clearDiagramError() {
+        _diagramState.value = DiagramUiState()
     }
 
     fun updateCategory(category: String?) {

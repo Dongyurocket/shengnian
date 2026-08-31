@@ -44,6 +44,7 @@ import com.voiceink.app.ui.theme.VoiceInkTextStyles
 @Composable
 fun RelatedNotesSection(
     related: List<RelatedNote>,
+    title: String = "相关笔记",
     onOpen: (Long) -> Unit,
     onUnlink: (Long) -> Unit
 ) {
@@ -56,7 +57,7 @@ fun RelatedNotesSection(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.Bottom
         ) {
-            Text("相关笔记", style = VoiceInkTextStyles.SectionLabel)
+            Text(title, style = VoiceInkTextStyles.SectionLabel)
             Text("${related.size} 条", fontSize = 10.5.sp, color = Faint)
         }
         Spacer(Modifier.height(10.dp))

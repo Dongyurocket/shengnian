@@ -24,12 +24,17 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.CheckBox
 import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -74,6 +79,12 @@ fun HomeScreen(
     val selected by vm.selected.collectAsStateWithLifecycle()
     val keyword by vm.keywordState.collectAsStateWithLifecycle()
     val todoCounts by vm.todoCounts.collectAsStateWithLifecycle()
+    val inspirationOnly by vm.inspiration.collectAsStateWithLifecycle()
+    val selectionMode by vm.selectionMode.collectAsStateWithLifecycle()
+    val selectedIds by vm.selectedIds.collectAsStateWithLifecycle()
+    val actionMessage by vm.actionMessage.collectAsStateWithLifecycle()
+    val merging by vm.merging.collectAsStateWithLifecycle()
+    var showMergeConfirm by androidx.compose.runtime.remember { mutableStateOf(false) }
 
     LazyColumn(
         modifier = Modifier
@@ -82,19 +93,47 @@ fun HomeScreen(
             .statusBarsPadding(),
         contentPadding = PaddingValues(start = 18.dp, end = 18.dp, top = 6.dp, bottom = 180.dp)
     ) {
-        item { BrandRow(onOpenSettings) }
+        item {
+            BrandRow(
+                onOpenSettings = onOpenSettings,
+                selectionMode = selectionMode,
+                selectedCount = selectedIds.size,
+                canMerge = selectedIds.size >= 2 && !merging,
+                onToggleSelection = { vm.setSelectionMode(!selectionMode) },
+                onMerge = { showMergeConfirm = true }
+            )
+        }
         item { SearchBox(keyword, vm::setKeyword) }
         item {
             FilterChips(
                 categories = categories,
                 selected = selected,
+                inspirationOnly = inspirationOnly,
                 totalCount = notes.size,
-                onSelect = vm::selectCategory
+                onSelect = {
+                    vm.setInspirationOnly(false)
+                    vm.selectCategory(it)
+                },
+                onSelectInspiration = {
+                    vm.selectCategory(null)
+                    vm.setInspirationOnly(it)
+                }
             )
         }
 
+        if (actionMessage != null) {
+            item {
+                Text(
+                    actionMessage!!,
+                    fontSize = 11.sp,
+                    color = Accent,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+            }
+        }
+
         if (notes.isEmpty()) {
-            item { EmptyHint(searching = keyword.isNotBlank() || selected != null) }
+            item { EmptyHint(searching = keyword.isNotBlank() || selected != null || inspirationOnly) }
         } else {
             val grouped = notes.groupBy { TimeUtils.dayLabel(it.createdAt) }
             for (label in listOf("今天", "昨天", "更早")) {
@@ -104,7 +143,15 @@ fun HomeScreen(
                     NoteCard(
                         note = note,
                         openTodos = todoCounts[note.id] ?: 0,
-                        onClick = { onOpenNote(note.id) },
+                        selected = note.id in selectedIds,
+                        selectionMode = selectionMode,
+                        onClick = {
+                            if (selectionMode && note.status == NoteStatus.READY) {
+                                vm.toggleSelection(note.id)
+                            } else if (!selectionMode) {
+                                onOpenNote(note.id)
+                            }
+                        },
                         onRetry = { vm.retryOrganize(note.id) }
                     )
                     Spacer(Modifier.height(11.dp))
@@ -112,10 +159,39 @@ fun HomeScreen(
             }
         }
     }
+
+    if (showMergeConfirm) {
+        AlertDialog(
+            onDismissRequest = { showMergeConfirm = false },
+            title = { Text("合并选中的笔记") },
+            text = {
+                Text(
+                    "将 ${selectedIds.size} 条已整理笔记交给 AI 汇总，并创建一条新的笔记。原笔记不会被删除。",
+                    fontSize = 13.sp
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    showMergeConfirm = false
+                    vm.mergeSelected()
+                }, enabled = !merging) { Text(if (merging) "合并中…" else "开始合并", color = if (merging) Faint else Accent) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showMergeConfirm = false }) { Text("取消", color = Muted) }
+            }
+        )
+    }
 }
 
 @Composable
-private fun BrandRow(onOpenSettings: () -> Unit) {
+private fun BrandRow(
+    onOpenSettings: () -> Unit,
+    selectionMode: Boolean,
+    selectedCount: Int,
+    canMerge: Boolean,
+    onToggleSelection: () -> Unit,
+    onMerge: () -> Unit
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -123,27 +199,55 @@ private fun BrandRow(onOpenSettings: () -> Unit) {
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.Top
     ) {
-        Column {
-            Text("声念", style = VoiceInkTextStyles.BrandName)
-            Spacer(Modifier.height(6.dp))
-            Text("声落成章，念起成行", style = VoiceInkTextStyles.BrandSlogan)
-        }
-        Box(
-            contentAlignment = Alignment.Center,
-            modifier = Modifier
-                .size(36.dp)
-                .clip(CircleShape)
-                .background(Accent06)
-                .border(1.dp, Accent12, CircleShape)
-                .clickable(onClick = onOpenSettings)
-        ) {
-            Text(
-                "念",
-                fontFamily = SerifFamily,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = Accent
-            )
+        if (selectionMode) {
+            Column(Modifier.weight(1f)) {
+                Text("选择笔记", style = VoiceInkTextStyles.BrandName)
+                Spacer(Modifier.height(6.dp))
+                Text("已选 $selectedCount 条 · 至少两条可合并", style = VoiceInkTextStyles.BrandSlogan)
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                TextButton(onClick = onToggleSelection) { Text("取消", color = Muted, fontSize = 12.sp) }
+                TextButton(enabled = canMerge, onClick = onMerge) {
+                    Icon(Icons.Outlined.AutoAwesome, contentDescription = null, tint = if (canMerge) Accent else Faint)
+                    Spacer(Modifier.width(3.dp))
+                    Text("合并", color = if (canMerge) Accent else Faint, fontSize = 12.sp)
+                }
+            }
+        } else {
+            Column(Modifier.weight(1f)) {
+                Text("声念", style = VoiceInkTextStyles.BrandName)
+                Spacer(Modifier.height(6.dp))
+                Text("声落成章，念起成行", style = VoiceInkTextStyles.BrandSlogan)
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Outlined.CheckBox,
+                    contentDescription = "选择笔记",
+                    tint = Muted,
+                    modifier = Modifier
+                        .size(30.dp)
+                        .clickable(onClick = onToggleSelection)
+                        .padding(4.dp)
+                )
+                Spacer(Modifier.width(6.dp))
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(CircleShape)
+                        .background(Accent06)
+                        .border(1.dp, Accent12, CircleShape)
+                        .clickable(onClick = onOpenSettings)
+                ) {
+                    Text(
+                        "念",
+                        fontFamily = SerifFamily,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Accent
+                    )
+                }
+            }
         }
     }
 }
@@ -189,8 +293,10 @@ private fun SearchBox(keyword: String, onChange: (String) -> Unit) {
 private fun FilterChips(
     categories: List<String>,
     selected: String?,
+    inspirationOnly: Boolean,
     totalCount: Int,
-    onSelect: (String?) -> Unit
+    onSelect: (String?) -> Unit,
+    onSelectInspiration: (Boolean) -> Unit
 ) {
     Row(
         modifier = Modifier
@@ -201,8 +307,13 @@ private fun FilterChips(
     ) {
         FilterChip(
             text = "全部 $totalCount",
-            selected = selected == null,
+            selected = selected == null && !inspirationOnly,
             onClick = { onSelect(null) }
+        )
+        FilterChip(
+            text = "灵感",
+            selected = inspirationOnly,
+            onClick = { onSelectInspiration(!inspirationOnly) }
         )
         for (c in categories) {
             FilterChip(text = c, selected = selected == c, onClick = { onSelect(c) })
@@ -242,6 +353,8 @@ private fun SectionLabel(text: String) {
 private fun NoteCard(
     note: NoteEntity,
     openTodos: Int,
+    selected: Boolean,
+    selectionMode: Boolean,
     onClick: () -> Unit,
     onRetry: () -> Unit
 ) {
@@ -249,19 +362,35 @@ private fun NoteCard(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(VoiceInkRadius.Card))
-            .background(SurfaceCard)
-            .border(1.dp, Color(0x0D1A1A1A), RoundedCornerShape(VoiceInkRadius.Card))
+            .background(if (selected) Accent06 else SurfaceCard)
+            .border(
+                1.dp,
+                if (selected) Accent12 else Color(0x0D1A1A1A),
+                RoundedCornerShape(VoiceInkRadius.Card)
+            )
             .clickable(onClick = onClick)
             .padding(16.dp)
     ) {
         val title = if (note.title.isNotBlank()) note.title
         else note.content.replace("\n", " ").take(40)
-        Text(
-            text = title,
-            style = VoiceInkTextStyles.NoteTitle,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis
-        )
+        Row(verticalAlignment = Alignment.Top, modifier = Modifier.fillMaxWidth()) {
+            Text(
+                text = title,
+                style = VoiceInkTextStyles.NoteTitle,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f)
+            )
+            if (selectionMode && note.status == NoteStatus.READY) {
+                Spacer(Modifier.width(8.dp))
+                Icon(
+                    Icons.Outlined.CheckBox,
+                    contentDescription = if (selected) "已选中" else "选择",
+                    tint = if (selected) Accent else Faint,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+        }
         val summary = note.summary
         if (!summary.isNullOrBlank()) {
             Spacer(Modifier.height(7.dp))
