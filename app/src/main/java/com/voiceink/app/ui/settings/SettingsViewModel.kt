@@ -6,6 +6,7 @@ import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import androidx.work.workDataOf
 import com.voiceink.app.ai.EmbeddingEndpoint
@@ -63,6 +64,11 @@ class SettingsViewModel @Inject constructor(
         val embedTestResult: String? = null,
         val linkEnabled: Boolean = true,
         val rebuilding: Boolean = false,
+        val rebuildMessage: String? = null,
+        val rebuildPhase: String? = null,
+        val rebuildProcessed: Int = 0,
+        val rebuildTotal: Int = 0,
+        val rebuildLinks: Int = 0,
         val exportResult: String? = null,
         val openDirectCapture: Boolean = false,
         val remindLead: String = "5",
@@ -94,6 +100,37 @@ class SettingsViewModel @Inject constructor(
                 remindLead = repo.remindLeadMinutes.first().toString(),
                 reminderMode = repo.reminderMode.first()
             )
+        }
+        viewModelScope.launch {
+            WorkManager.getInstance(context)
+                .getWorkInfosForUniqueWorkFlow(LinkScanWorker.UNIQUE_REBUILD)
+                .collect { infos ->
+                    val info = infos.firstOrNull() ?: return@collect
+                    val data = if (info.state == WorkInfo.State.SUCCEEDED || info.state == WorkInfo.State.FAILED) info.outputData else info.progress
+                    val processed = data.getInt(LinkScanWorker.KEY_PROCESSED, 0)
+                    val total = data.getInt(LinkScanWorker.KEY_TOTAL, 0)
+                    val links = data.getInt(LinkScanWorker.KEY_LINKS, 0)
+                    val phase = data.getString(LinkScanWorker.KEY_PHASE)
+                    val error = data.getString(LinkScanWorker.KEY_ERROR)
+                    val message = when (info.state) {
+                        WorkInfo.State.ENQUEUED -> "等待后台执行"
+                        WorkInfo.State.RUNNING -> if (total > 0) "正在处理 $processed / $total 篇笔记" else "正在准备重建"
+                        WorkInfo.State.SUCCEEDED -> "重建完成 · 已处理 $processed 篇笔记 · $links 条关联"
+                        WorkInfo.State.FAILED -> error?.let { "重建失败：$it" } ?: "重建失败 · 已处理 $processed / $total 篇笔记"
+                        WorkInfo.State.CANCELLED -> "重建已取消"
+                        WorkInfo.State.BLOCKED -> "等待后台条件"
+                    }
+                    _ui.update {
+                        it.copy(
+                            rebuilding = info.state == WorkInfo.State.ENQUEUED || info.state == WorkInfo.State.RUNNING,
+                            rebuildMessage = message,
+                            rebuildPhase = phase,
+                            rebuildProcessed = processed,
+                            rebuildTotal = total,
+                            rebuildLinks = links
+                        )
+                    }
+                }
         }
     }
 
@@ -269,6 +306,10 @@ class SettingsViewModel @Inject constructor(
 
     /** 重建知识网络（§9.3）：清空关联与向量，后台全量重算 */
     fun rebuildNetwork() {
+        if (!_ui.value.linkEnabled) {
+            _ui.update { it.copy(rebuildMessage = "请先启用笔记关联发现") }
+            return
+        }
         viewModelScope.launch {
             WorkManager.getInstance(context).enqueueUniqueWork(
                 LinkScanWorker.UNIQUE_REBUILD,
@@ -277,7 +318,6 @@ class SettingsViewModel @Inject constructor(
                     .setInputData(workDataOf(LinkScanWorker.KEY_REBUILD to true))
                     .build()
             )
-            _ui.update { it.copy(rebuilding = true) }
         }
     }
 }

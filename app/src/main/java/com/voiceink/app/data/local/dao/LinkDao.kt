@@ -31,6 +31,9 @@ interface LinkDao {
     @Query("DELETE FROM note_links")
     suspend fun clear()
 
+    @Query("SELECT COUNT(*) FROM note_links")
+    suspend fun count(): Int
+
     @Query("SELECT fromId, toId FROM note_links")
     fun observeAllLinks(): Flow<List<NoteLinkPair>>
 

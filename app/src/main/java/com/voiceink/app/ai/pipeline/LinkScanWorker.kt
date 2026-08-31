@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.hilt.work.HiltWorker
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
+import androidx.work.workDataOf
 import com.voiceink.app.data.local.dao.EmbeddingDao
 import com.voiceink.app.data.local.dao.LinkDao
 import com.voiceink.app.data.local.dao.NoteDao
@@ -27,19 +28,34 @@ class LinkScanWorker @AssistedInject constructor(
 ) : CoroutineWorker(context, params) {
 
     override suspend fun doWork(): Result {
-        if (!settings.isLinkDiscoveryEnabled()) return Result.success()
-        val rebuild = inputData.getBoolean(KEY_REBUILD, false)
-        val since = if (rebuild) {
-            links.clear()
-            embeddings.clear()
-            0L
-        } else {
-            settings.lastLinkScan()
+        if (!settings.isLinkDiscoveryEnabled()) {
+            return Result.failure(workDataOf(KEY_ERROR to "关联发现未启用"))
         }
+        val rebuild = inputData.getBoolean(KEY_REBUILD, false)
         return try {
-            notes.readyIdsSince(since).forEach { linkDiscovery.discoverFor(it) }
+            val since = if (rebuild) {
+                links.clear()
+                embeddings.clear()
+                0L
+            } else {
+                settings.lastLinkScan()
+            }
+            val ids = notes.readyIdsSince(since)
+            setProgress(workDataOf(KEY_TOTAL to ids.size, KEY_PROCESSED to 0, KEY_PHASE to "准备中"))
+            ids.forEachIndexed { index, id ->
+                setProgress(workDataOf(KEY_TOTAL to ids.size, KEY_PROCESSED to index, KEY_PHASE to "分析笔记"))
+                linkDiscovery.discoverFor(id)
+                setProgress(workDataOf(KEY_TOTAL to ids.size, KEY_PROCESSED to index + 1, KEY_PHASE to "分析笔记"))
+            }
             settings.setLastLinkScan(System.currentTimeMillis())
-            Result.success()
+            Result.success(
+                workDataOf(
+                    KEY_TOTAL to ids.size,
+                    KEY_PROCESSED to ids.size,
+                    KEY_LINKS to links.count() / 2,
+                    KEY_PHASE to "已完成"
+                )
+            )
         } catch (cancelled: kotlinx.coroutines.CancellationException) {
             throw cancelled
         } catch (_: Exception) {
@@ -49,6 +65,11 @@ class LinkScanWorker @AssistedInject constructor(
 
     companion object {
         const val KEY_REBUILD = "rebuild"
+        const val KEY_TOTAL = "total"
+        const val KEY_PROCESSED = "processed"
+        const val KEY_LINKS = "links"
+        const val KEY_PHASE = "phase"
+        const val KEY_ERROR = "error"
         const val UNIQUE_DAILY = "link_scan_daily"
         const val UNIQUE_REBUILD = "link_scan_rebuild"
     }

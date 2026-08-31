@@ -27,6 +27,7 @@ import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
@@ -357,14 +358,31 @@ fun SettingsScreen(
                         .height(32.dp)
                         .clip(RoundedCornerShape(VoiceInkRadius.Chip))
                         .background(Paper2)
-                        .clickable(enabled = !ui.rebuilding) { vm.rebuildNetwork() }
+                        .clickable(enabled = !ui.rebuilding && ui.linkEnabled) { vm.rebuildNetwork() }
                         .padding(horizontal = 14.dp)
                 ) {
                     Text(
-                        if (ui.rebuilding) "已加入后台重建队列" else "重建知识网络",
+                        if (ui.rebuilding) "重建进行中" else "重建知识网络",
                         color = if (ui.rebuilding) Faint else Ink,
                         fontSize = 11.5.sp
                     )
+                }
+            }
+            ui.rebuildMessage?.let { message ->
+                Spacer(Modifier.height(8.dp))
+                Text(message, fontSize = 11.sp, color = if (ui.rebuilding) Accent else Muted)
+                if (ui.rebuilding && ui.rebuildTotal > 0) {
+                    Spacer(Modifier.height(6.dp))
+                    LinearProgressIndicator(
+                        progress = { ui.rebuildProcessed.toFloat() / ui.rebuildTotal.coerceAtLeast(1) },
+                        color = Accent,
+                        trackColor = Paper2,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    ui.rebuildPhase?.let { phase ->
+                        Spacer(Modifier.height(3.dp))
+                        Text(phase, fontSize = 10.5.sp, color = Faint)
+                    }
                 }
             }
             Spacer(Modifier.height(12.dp))
