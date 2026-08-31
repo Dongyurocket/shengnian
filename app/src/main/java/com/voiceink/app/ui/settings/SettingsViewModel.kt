@@ -12,6 +12,7 @@ import com.voiceink.app.ai.EmbeddingEndpoint
 import com.voiceink.app.ai.LlmEndpoint
 import com.voiceink.app.ai.LlmGateway
 import com.voiceink.app.ai.LlmProtocol
+import com.voiceink.app.ai.ThinkingEffort
 import com.voiceink.app.ai.embedding.EmbeddingClient
 import com.voiceink.app.ai.pipeline.LinkScanWorker
 import com.voiceink.app.data.export.MarkdownExporter
@@ -51,6 +52,8 @@ class SettingsViewModel @Inject constructor(
         val baseUrl: String = "",
         val model: String = "",
         val apiKey: String = "",
+        val thinkingEnabled: Boolean = false,
+        val thinkingEffort: ThinkingEffort = ThinkingEffort.MEDIUM,
         val llmTestResult: String? = null,
         val embedEnabled: Boolean = false,
         val embedBaseUrl: String = "",
@@ -78,6 +81,8 @@ class SettingsViewModel @Inject constructor(
                 baseUrl = cfg.baseUrl,
                 model = cfg.model,
                 apiKey = repo.savedLlmApiKey(),
+                thinkingEnabled = cfg.thinkingEnabled,
+                thinkingEffort = cfg.thinkingEffort,
                 embedEnabled = embed.enabled,
                 embedBaseUrl = embed.baseUrl,
                 embedModel = embed.model,
@@ -97,7 +102,16 @@ class SettingsViewModel @Inject constructor(
         val s = _ui.value
         viewModelScope.launch {
             _ui.update { it.copy(llmTestResult = "测试中…") }
-            val result = gateway.testEndpoint(LlmEndpoint(s.baseUrl, s.apiKey, s.model, s.protocol))
+            val result = gateway.testEndpoint(
+                LlmEndpoint(
+                    s.baseUrl,
+                    s.apiKey,
+                    s.model,
+                    s.protocol,
+                    s.thinkingEnabled,
+                    s.thinkingEffort
+                )
+            )
             _ui.update { it.copy(llmTestResult = result) }
         }
     }
@@ -131,7 +145,7 @@ class SettingsViewModel @Inject constructor(
     fun save() {
         val s = _ui.value
         viewModelScope.launch {
-            repo.saveLlm(s.protocol, s.baseUrl, s.model, s.apiKey)
+            repo.saveLlm(s.protocol, s.baseUrl, s.model, s.apiKey, s.thinkingEnabled, s.thinkingEffort)
             repo.saveEmbedding(s.embedEnabled, s.embedBaseUrl, s.embedModel, s.embedApiKey)
             repo.setLinkDiscoveryEnabled(s.linkEnabled)
             repo.setOpenDirectCapture(s.openDirectCapture)

@@ -5,11 +5,13 @@ import com.voiceink.app.ai.prompt.ParsedIntent
 import com.voiceink.app.data.local.AppDatabase
 import com.voiceink.app.data.local.dao.AttachmentDao
 import com.voiceink.app.data.local.dao.CategoryDao
+import com.voiceink.app.data.local.dao.EmbeddingDao
 import com.voiceink.app.data.local.dao.NoteDao
 import com.voiceink.app.data.local.dao.TagDao
 import com.voiceink.app.data.local.dao.TodoDao
 import com.voiceink.app.data.local.entity.CategoryEntity
 import com.voiceink.app.data.local.entity.NoteEntity
+import com.voiceink.app.data.local.entity.NoteLifecycleStatus
 import com.voiceink.app.data.local.entity.NoteTagCrossRef
 import com.voiceink.app.data.local.entity.TagEntity
 import kotlinx.coroutines.flow.Flow
@@ -23,7 +25,9 @@ class NoteRepository @Inject constructor(
     private val categoryDao: CategoryDao,
     private val database: AppDatabase,
     private val todoDao: TodoDao,
-    private val attachmentDao: AttachmentDao
+    private val attachmentDao: AttachmentDao,
+    private val embeddingDao: EmbeddingDao,
+    private val attachmentRepository: NoteAttachmentRepository
 ) {
     /** 原始输入立即落库，status=PENDING_AI，保证 AI 故障时数据不丢 */
     suspend fun insertRaw(content: String, source: String = "app", intentHint: String? = null): Long =
@@ -40,13 +44,15 @@ class NoteRepository @Inject constructor(
         category: String?,
         tag: String? = null,
         keyword: String? = null,
-        inspiration: Boolean? = null
+        inspiration: Boolean? = null,
+        lifecycleStatus: NoteLifecycleStatus? = null
     ): Flow<List<NoteEntity>> =
         noteDao.observeFiltered(
             category,
             tag,
             keyword?.takeIf { it.isNotBlank() },
-            inspiration
+            inspiration,
+            lifecycleStatus
         )
 
     fun observeById(id: Long): Flow<NoteEntity?> = noteDao.observeById(id)
@@ -61,6 +67,9 @@ class NoteRepository @Inject constructor(
             categoryDao.bumpUsage(it)
         }
     }
+
+    suspend fun updateLifecycleStatus(id: Long, status: NoteLifecycleStatus) =
+        noteDao.updateLifecycleStatus(id, status)
 
     fun categories(): Flow<List<String>> = noteDao.observeCategories()
 
@@ -77,20 +86,22 @@ class NoteRepository @Inject constructor(
             expectedIntentHint = note.intentHint
         ) > 0
 
-    suspend fun delete(id: Long) = noteDao.deleteById(id)
+    /** 删除笔记本身，但保留其提炼出的待办并解除待办的来源笔记。 */
+    suspend fun delete(id: Long) {
+        val attachments = database.withTransaction {
+            val rows = attachmentDao.listForNote(id)
+            todoDao.detachAllFromNote(id)
+            noteDao.deleteById(id)
+            // 向量表没有外键，需显式删除，避免留下无法使用的孤儿向量。
+            embeddingDao.deleteForNote(id)
+            rows
+        }
+        attachmentRepository.deleteFiles(attachments)
+    }
 
-    suspend fun deleteIfCurrent(note: NoteEntity): Boolean =
-        noteDao.deleteIfCurrent(
-            id = note.id,
-            expectedUpdatedAt = note.updatedAt,
-            expectedContent = note.content,
-            expectedRawContent = note.rawContent,
-            expectedIntentHint = note.intentHint,
-            expectedAttachmentCount = attachmentDao.countForNote(note.id)
-        ) > 0
-
-    suspend fun deleteIfCurrentAndDetachTodo(note: NoteEntity, todoId: Long): Boolean =
-        database.withTransaction {
+    suspend fun deleteIfCurrent(note: NoteEntity): Boolean {
+        val attachments = attachmentDao.listForNote(note.id)
+        val deleted = database.withTransaction {
             val deleted = noteDao.deleteIfCurrent(
                 id = note.id,
                 expectedUpdatedAt = note.updatedAt,
@@ -99,9 +110,36 @@ class NoteRepository @Inject constructor(
                 expectedIntentHint = note.intentHint,
                 expectedAttachmentCount = attachmentDao.countForNote(note.id)
             ) > 0
-            if (deleted) todoDao.detachFromNote(todoId)
+            if (deleted) {
+                todoDao.detachAllFromNote(note.id)
+                embeddingDao.deleteForNote(note.id)
+            }
             deleted
         }
+        if (deleted) attachmentRepository.deleteFiles(attachments)
+        return deleted
+    }
+
+    suspend fun deleteIfCurrentAndDetachTodo(note: NoteEntity, todoId: Long): Boolean {
+        val attachments = attachmentDao.listForNote(note.id)
+        val deleted = database.withTransaction {
+            val deleted = noteDao.deleteIfCurrent(
+                id = note.id,
+                expectedUpdatedAt = note.updatedAt,
+                expectedContent = note.content,
+                expectedRawContent = note.rawContent,
+                expectedIntentHint = note.intentHint,
+                expectedAttachmentCount = attachmentDao.countForNote(note.id)
+            ) > 0
+            if (deleted) {
+                todoDao.detachFromNote(todoId)
+                embeddingDao.deleteForNote(note.id)
+            }
+            deleted
+        }
+        if (deleted) attachmentRepository.deleteFiles(attachments)
+        return deleted
+    }
 
     /** 用户常用分类（按使用频次），注入 Prompt 供 AI 参考（§8.2） */
     suspend fun topCategories(): List<String> = categoryDao.topThemes()

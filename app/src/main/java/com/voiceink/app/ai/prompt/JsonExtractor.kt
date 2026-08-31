@@ -46,7 +46,8 @@ object JsonExtractor {
                         ?.let { TimeUtils.parseDateTime(it) },
                     remindLeadMinutes = o["remind_lead_minutes"]?.jsonPrimitive?.intOrNull
                         ?.takeIf { it >= 0 }
-                        ?.coerceIn(0, 24 * 60)
+                        ?.coerceIn(0, 24 * 60),
+                    isAlarm = o["is_alarm"]?.jsonPrimitive?.booleanOrNull ?: false
                 )
             }
             "note" -> {

@@ -62,3 +62,35 @@ val MIGRATION_3_4 = object : Migration(3, 4) {
         db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_note_diagrams_noteId_kind ON note_diagrams(noteId, kind)")
     }
 }
+
+/** 增量迁移：为待办增加多次提醒、系统闹钟和日历同步字段。 */
+val MIGRATION_4_5 = object : Migration(4, 5) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE notes ADD COLUMN lifecycleStatus TEXT NOT NULL DEFAULT 'PENDING'")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_notes_lifecycleStatus ON notes(lifecycleStatus)")
+
+        db.execSQL("ALTER TABLE todos ADD COLUMN reminderCount INTEGER NOT NULL DEFAULT 1")
+        db.execSQL("ALTER TABLE todos ADD COLUMN reminderIntervalMinutes INTEGER NOT NULL DEFAULT 10")
+        db.execSQL("ALTER TABLE todos ADD COLUMN isAlarm INTEGER NOT NULL DEFAULT 0")
+        db.execSQL("ALTER TABLE todos ADD COLUMN calendarEventId INTEGER")
+
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS todo_reminders (
+                todoId INTEGER NOT NULL,
+                sequence INTEGER NOT NULL,
+                triggerAt INTEGER NOT NULL,
+                PRIMARY KEY(todoId, sequence),
+                FOREIGN KEY(todoId) REFERENCES todos(id) ON UPDATE NO ACTION ON DELETE CASCADE
+            )
+            """.trimIndent()
+        )
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_todo_reminders_triggerAt ON todo_reminders(triggerAt)")
+        db.execSQL(
+            """
+            INSERT INTO todo_reminders(todoId, sequence, triggerAt)
+            SELECT id, 0, remindAt FROM todos WHERE remindAt IS NOT NULL
+            """.trimIndent()
+        )
+    }
+}

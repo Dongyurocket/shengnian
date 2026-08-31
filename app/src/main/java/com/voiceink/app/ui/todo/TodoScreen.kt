@@ -17,13 +17,16 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material3.AlertDialog
@@ -33,6 +36,8 @@ import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.rememberSwipeToDismissBoxState
@@ -56,6 +61,8 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.voiceink.app.core.TimeUtils
 import com.voiceink.app.data.local.entity.TodoEntity
+import com.voiceink.app.data.local.entity.TodoReminderEntity
+import com.voiceink.app.data.repo.TodoRepository
 import com.voiceink.app.ui.theme.Accent
 import com.voiceink.app.ui.theme.Accent12
 import com.voiceink.app.ui.theme.Faint
@@ -80,8 +87,30 @@ fun TodoScreen(
     vm: TodoViewModel = hiltViewModel()
 ) {
     val todos by vm.todos.collectAsStateWithLifecycle()
+    val remindersByTodo by vm.remindersByTodo.collectAsStateWithLifecycle()
+    val message by vm.message.collectAsStateWithLifecycle()
     val context = LocalContext.current
     var editing by remember { mutableStateOf<TodoEntity?>(null) }
+    var pendingCalendarSave by remember { mutableStateOf<Pair<TodoEntity, TodoEditInput>?>(null) }
+    val calendarPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) {
+        pendingCalendarSave?.let { (todo, input) ->
+            pendingCalendarSave = null
+            vm.save(todo, input) { editing = null }
+        }
+    }
+
+    fun saveTodo(todo: TodoEntity, input: TodoEditInput) {
+        if (input.syncCalendar && !vm.hasCalendarPermission()) {
+            pendingCalendarSave = todo to input
+            calendarPermissionLauncher.launch(
+                arrayOf(Manifest.permission.READ_CALENDAR, Manifest.permission.WRITE_CALENDAR)
+            )
+        } else {
+            vm.save(todo, input) { editing = null }
+        }
+    }
 
     // API 33+ 通知运行时权限
     val notifPermission = rememberLauncherForActivityResult(
@@ -174,13 +203,22 @@ fun TodoScreen(
             }
         }
 
+        message?.let { status ->
+            Text(
+                status,
+                fontSize = 11.sp,
+                color = if (status.contains("失败") || status.contains("未授权")) Accent else Muted,
+                modifier = Modifier.padding(top = 10.dp)
+            )
+        }
+
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
             contentPadding = androidx.compose.foundation.layout.PaddingValues(top = 22.dp, bottom = 180.dp)
         ) {
-            item { TodoGroup("今天", today, vm, onOpenNote, onEdit = { editing = it }) }
-            item { TodoGroup("接下来", next, vm, onOpenNote, onEdit = { editing = it }) }
-            item { TodoGroup("无时间", noDate, vm, onOpenNote, onEdit = { editing = it }) }
+            item { TodoGroup("今天", today, remindersByTodo, vm, onOpenNote, onEdit = { editing = it }) }
+            item { TodoGroup("接下来", next, remindersByTodo, vm, onOpenNote, onEdit = { editing = it }) }
+            item { TodoGroup("无时间", noDate, remindersByTodo, vm, onOpenNote, onEdit = { editing = it }) }
 
             if (todos.isEmpty()) {
                 item {
@@ -204,13 +242,11 @@ fun TodoScreen(
     }
 
     editing?.let { todo ->
-        ScheduleEditDialog(
+        TodoEditDialog(
             todo = todo,
+            reminders = remindersByTodo[todo.id].orEmpty(),
             onDismiss = { editing = null },
-            onSave = { deadline, lead ->
-                vm.updateSchedule(todo.id, deadline, lead)
-                editing = null
-            }
+            onSave = { input -> saveTodo(todo, input) }
         )
     }
 }
@@ -219,6 +255,7 @@ fun TodoScreen(
 private fun TodoGroup(
     label: String,
     items: List<TodoEntity>,
+    remindersByTodo: Map<Long, List<TodoReminderEntity>>,
     vm: TodoViewModel,
     onOpenNote: (Long) -> Unit,
     onEdit: (TodoEntity) -> Unit
@@ -241,7 +278,7 @@ private fun TodoGroup(
             .border(1.dp, Color(0x0D1A1A1A), RoundedCornerShape(VoiceInkRadius.Card))
     ) {
         open.forEach { todo ->
-            TodoRow(todo, vm, onOpenNote, onEdit)
+            TodoRow(todo, remindersByTodo[todo.id].orEmpty(), vm, onOpenNote, onEdit)
         }
         if (done.isNotEmpty()) {
             Text(
@@ -250,7 +287,7 @@ private fun TodoGroup(
                 modifier = Modifier.padding(start = 15.dp, top = 10.dp, bottom = 2.dp)
             )
             done.forEach { todo ->
-                TodoRow(todo, vm, onOpenNote, onEdit)
+                TodoRow(todo, remindersByTodo[todo.id].orEmpty(), vm, onOpenNote, onEdit)
             }
         }
     }
@@ -260,6 +297,7 @@ private fun TodoGroup(
 @Composable
 private fun TodoRow(
     todo: TodoEntity,
+    reminders: List<TodoReminderEntity>,
     vm: TodoViewModel,
     onOpenNote: (Long) -> Unit,
     onEdit: (TodoEntity) -> Unit
@@ -331,7 +369,8 @@ private fun TodoRow(
                         PriorityChip(todo.priority)
                     }
                 }
-                val hasSub = todo.deadline != null || todo.sourceNoteId != null
+                val hasSub = todo.deadline != null || todo.sourceNoteId != null ||
+                    reminders.isNotEmpty() || todo.calendarEventId != null
                 if (hasSub) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
@@ -344,6 +383,18 @@ private fun TodoRow(
                                 color = Muted,
                                 letterSpacing = 0.3.sp
                             )
+                        }
+                        if (reminders.isNotEmpty()) {
+                            if (todo.deadline != null) Spacer(Modifier.width(9.dp))
+                            Text(
+                                (if (todo.isAlarm) "闹钟" else "提醒") + " ${reminders.size} 次",
+                                fontSize = 10.5.sp,
+                                color = if (todo.isAlarm) Accent else Muted
+                            )
+                        }
+                        if (todo.calendarEventId != null) {
+                            Spacer(Modifier.width(9.dp))
+                            Text("已同步日历", fontSize = 10.5.sp, color = Faint)
                         }
                         todo.sourceNoteId?.let { noteId ->
                             if (todo.deadline != null) Spacer(Modifier.width(9.dp))
@@ -381,70 +432,187 @@ private fun PriorityChip(priority: Int) {
     }
 }
 
-/** 编辑截止时间/提前量（§3.1） */
+/** 编辑待办内容、截止时间和完整提醒时间表。 */
 @Composable
-private fun ScheduleEditDialog(
+private fun TodoEditDialog(
     todo: TodoEntity,
+    reminders: List<com.voiceink.app.data.local.entity.TodoReminderEntity>,
     onDismiss: () -> Unit,
-    onSave: (deadline: Long?, leadMinutes: Int) -> Unit
+    onSave: (TodoEditInput) -> Unit
 ) {
-    var deadlineText by remember {
-        mutableStateOf(todo.deadline?.let { TimeUtils.formatDateTime(it) } ?: "")
+    val initialDeadlineText = remember(todo.id) {
+        todo.deadline?.let { TimeUtils.formatDateTime(it) } ?: ""
     }
-    var leadText by remember { mutableStateOf(todo.remindLeadMinutes.toString()) }
-    var error by remember { mutableStateOf(false) }
+    val initialTimesText = remember(todo.id) {
+        reminders.joinToString("\n") { TimeUtils.formatDateTime(it.triggerAt) }
+    }
+    var content by remember(todo.id) { mutableStateOf(todo.content) }
+    var deadlineText by remember(todo.id) { mutableStateOf(initialDeadlineText) }
+    var countText by remember(todo.id) {
+        mutableStateOf(todo.reminderCount.coerceIn(0, TodoRepository.MAX_REMINDERS).toString())
+    }
+    var intervalText by remember(todo.id) {
+        mutableStateOf(todo.reminderIntervalMinutes.toString())
+    }
+    var timesText by remember(todo.id) { mutableStateOf(initialTimesText) }
+    var isAlarm by remember(todo.id) { mutableStateOf(todo.isAlarm) }
+    var syncCalendar by remember(todo.id) { mutableStateOf(todo.calendarEventId != null) }
+    var error by remember(todo.id) { mutableStateOf<String?>(null) }
+
+    fun generateTimes() {
+        val count = countText.toIntOrNull()?.coerceIn(0, TodoRepository.MAX_REMINDERS) ?: 1
+        val interval = intervalText.toIntOrNull()?.coerceIn(1, TodoRepository.MAX_INTERVAL_MINUTES) ?: 10
+        val first = timesText.lines()
+            .mapNotNull { TimeUtils.parseDateTime(it.trim()) }
+            .firstOrNull()
+            ?: deadlineText.trim().takeIf { it.isNotBlank() }?.let { TimeUtils.parseDateTime(it) }
+                ?.let { if (isAlarm) it else it - todo.remindLeadMinutes * 60_000L }
+        if (first == null) {
+            error = "请先填写一个有效的截止时间或提醒时间"
+            return
+        }
+        timesText = reminderTimesFrom(first, count, interval)
+            .joinToString("\n") { TimeUtils.formatDateTime(it) }
+        error = null
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = SurfaceCard,
-        title = { Text("编辑提醒", style = VoiceInkTextStyles.NoteTitle) },
+        title = { Text("编辑待办", style = VoiceInkTextStyles.NoteTitle) },
         text = {
-            Column {
+            Column(
+                modifier = Modifier
+                    .heightIn(max = 520.dp)
+                    .verticalScroll(rememberScrollState())
+            ) {
+                Text("待办内容", fontSize = 11.sp, color = Muted)
+                Spacer(Modifier.height(6.dp))
+                TextField(
+                    value = content,
+                    onValueChange = { content = it; error = null },
+                    minLines = 2,
+                    maxLines = 4,
+                    shape = RoundedCornerShape(VoiceInkRadius.Input),
+                    colors = editFieldColors(),
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(Modifier.height(12.dp))
                 Text("截止时间（yyyy-MM-dd HH:mm，留空为无）", fontSize = 11.sp, color = Muted)
                 Spacer(Modifier.height(6.dp))
                 TextField(
                     value = deadlineText,
-                    onValueChange = { deadlineText = it; error = false },
+                    onValueChange = { deadlineText = it; error = null },
                     singleLine = true,
-                    isError = error,
+                    isError = deadlineText.isNotBlank() && TimeUtils.parseDateTime(deadlineText.trim()) == null,
                     shape = RoundedCornerShape(VoiceInkRadius.Input),
-                    colors = TextFieldDefaults.colors(
-                        focusedContainerColor = Paper2,
-                        unfocusedContainerColor = Paper2,
-                        focusedIndicatorColor = Color.Transparent,
-                        unfocusedIndicatorColor = Color.Transparent,
-                        cursorColor = Accent
-                    ),
+                    colors = editFieldColors(),
                     modifier = Modifier.fillMaxWidth()
                 )
                 Spacer(Modifier.height(12.dp))
-                Text("提前提醒（分钟）", fontSize = 11.sp, color = Muted)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    NumberField(
+                        label = "提醒次数",
+                        value = countText,
+                        onValueChange = { countText = it.filter(Char::isDigit) },
+                        modifier = Modifier.weight(1f)
+                    )
+                    NumberField(
+                        label = "间隔（分钟）",
+                        value = intervalText,
+                        onValueChange = { intervalText = it.filter(Char::isDigit) },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+                Spacer(Modifier.height(10.dp))
+                Text("每次提醒的具体时间（每行一条）", fontSize = 11.sp, color = Muted)
                 Spacer(Modifier.height(6.dp))
                 TextField(
-                    value = leadText,
-                    onValueChange = { leadText = it.filter(Char::isDigit) },
-                    singleLine = true,
+                    value = timesText,
+                    onValueChange = { timesText = it; error = null },
+                    minLines = 3,
+                    maxLines = 6,
+                    placeholder = { Text("2026-09-01 07:50\n2026-09-01 08:00", fontSize = 12.sp, color = Faint) },
                     shape = RoundedCornerShape(VoiceInkRadius.Input),
-                    colors = TextFieldDefaults.colors(
-                        focusedContainerColor = Paper2,
-                        unfocusedContainerColor = Paper2,
-                        focusedIndicatorColor = Color.Transparent,
-                        unfocusedIndicatorColor = Color.Transparent,
-                        cursorColor = Accent
-                    ),
+                    colors = editFieldColors(),
                     modifier = Modifier.fillMaxWidth()
                 )
+                TextButton(onClick = ::generateTimes) {
+                    Text("按次数和间隔生成时间", color = Accent, fontSize = 11.sp)
+                }
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                    Column(Modifier.weight(1f)) {
+                        Text("作为手机闹钟", fontSize = 13.sp, color = Ink)
+                        Text("在提醒时使用系统闹钟方式触发", fontSize = 10.5.sp, color = Faint)
+                    }
+                    Switch(
+                        checked = isAlarm,
+                        onCheckedChange = { isAlarm = it },
+                        colors = SwitchDefaults.colors(checkedTrackColor = Accent)
+                    )
+                }
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                    Column(Modifier.weight(1f)) {
+                        Text("同步到手机日历", fontSize = 13.sp, color = Ink)
+                        Text("创建或更新一条日历事件", fontSize = 10.5.sp, color = Faint)
+                    }
+                    Switch(
+                        checked = syncCalendar,
+                        onCheckedChange = { syncCalendar = it },
+                        colors = SwitchDefaults.colors(checkedTrackColor = Accent)
+                    )
+                }
+                error?.let { Text(it, fontSize = 10.5.sp, color = Accent, modifier = Modifier.padding(top = 6.dp)) }
             }
         },
         confirmButton = {
             TextButton(onClick = {
-                val deadline = deadlineText.trim().takeIf { it.isNotEmpty() }
+                val normalizedContent = content.trim()
+                val deadline = deadlineText.trim().takeIf { it.isNotBlank() }
                     ?.let { TimeUtils.parseDateTime(it) }
-                if (deadlineText.isNotBlank() && deadline == null) {
-                    error = true
-                    return@TextButton
+                val times = timesText.lines()
+                    .map { it.trim() }
+                    .filter { it.isNotBlank() }
+                    .map { TimeUtils.parseDateTime(it) }
+                when {
+                    normalizedContent.isBlank() -> error = "待办内容不能为空"
+                    deadlineText.isNotBlank() && deadline == null -> error = "截止时间格式不正确"
+                    times.any { it == null } -> error = "提醒时间格式不正确"
+                    else -> {
+                        val parsedTimes = times.filterNotNull()
+                        val requestedCount = countText.toIntOrNull()
+                            ?.coerceIn(0, TodoRepository.MAX_REMINDERS)
+                            ?: parsedTimes.size
+                        val interval = intervalText.toIntOrNull()
+                            ?.coerceIn(1, TodoRepository.MAX_INTERVAL_MINUTES) ?: 10
+                        val timesWereUntouched = timesText == initialTimesText
+                        val scheduleSettingsChanged =
+                            deadlineText.trim() != initialDeadlineText.trim() ||
+                                requestedCount != todo.reminderCount.coerceIn(0, TodoRepository.MAX_REMINDERS) ||
+                                interval != todo.reminderIntervalMinutes ||
+                                isAlarm != todo.isAlarm
+                        val generated = if (timesWereUntouched && scheduleSettingsChanged) {
+                            val first = deadline?.let {
+                                if (isAlarm) it else it - todo.remindLeadMinutes * 60_000L
+                            } ?: parsedTimes.firstOrNull()
+                            first?.let { reminderTimesFrom(it, requestedCount, interval) }.orEmpty()
+                        } else if (parsedTimes.isEmpty() && deadline != null) {
+                            val first = if (isAlarm) deadline else deadline - todo.remindLeadMinutes * 60_000L
+                            reminderTimesFrom(first, requestedCount, interval)
+                        } else parsedTimes
+                        onSave(
+                            TodoEditInput(
+                                content = normalizedContent,
+                                deadline = deadline,
+                                reminders = generated,
+                                reminderCount = requestedCount,
+                                reminderIntervalMinutes = interval,
+                                isAlarm = isAlarm,
+                                syncCalendar = syncCalendar
+                            )
+                        )
+                    }
                 }
-                onSave(deadline, leadText.toIntOrNull()?.coerceIn(0, 1440) ?: 5)
             }) { Text("保存", color = Accent) }
         },
         dismissButton = {
@@ -452,3 +620,33 @@ private fun ScheduleEditDialog(
         }
     )
 }
+
+@Composable
+private fun NumberField(
+    label: String,
+    value: String,
+    onValueChange: (String) -> Unit,
+    modifier: Modifier
+) {
+    Column(modifier) {
+        Text(label, fontSize = 11.sp, color = Muted)
+        Spacer(Modifier.height(6.dp))
+        TextField(
+            value = value,
+            onValueChange = onValueChange,
+            singleLine = true,
+            shape = RoundedCornerShape(VoiceInkRadius.Input),
+            colors = editFieldColors(),
+            modifier = Modifier.fillMaxWidth()
+        )
+    }
+}
+
+@Composable
+private fun editFieldColors() = TextFieldDefaults.colors(
+    focusedContainerColor = Paper2,
+    unfocusedContainerColor = Paper2,
+    focusedIndicatorColor = Color.Transparent,
+    unfocusedIndicatorColor = Color.Transparent,
+    cursorColor = Accent
+)

@@ -5,6 +5,7 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.os.Build
+import com.voiceink.app.MainActivity
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -17,27 +18,44 @@ class ReminderScheduler @Inject constructor(
     private val am = context.getSystemService(AlarmManager::class.java)
 
     fun schedule(todoId: Long, triggerAt: Long) {
+        schedule(todoId, sequence = 0, triggerAt = triggerAt, isAlarm = false)
+    }
+
+    fun schedule(todoId: Long, sequence: Int, triggerAt: Long, isAlarm: Boolean = false) {
         if (triggerAt <= System.currentTimeMillis()) return
-        val pi = pendingIntent(todoId)
+        val pi = pendingIntent(todoId, sequence)
         if (Build.VERSION.SDK_INT >= 31 && !am.canScheduleExactAlarms()) {
             // 未授权精确闹钟 → 降级窗口闹钟（设置页/UI 引导用户授权）
             am.setWindow(AlarmManager.RTC_WAKEUP, triggerAt, 10 * 60_000L, pi)
+        } else if (isAlarm) {
+            val showIntent = PendingIntent.getActivity(
+                context,
+                requestCode(todoId, sequence) xor 0x13579,
+                Intent(context, MainActivity::class.java),
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            am.setAlarmClock(AlarmManager.AlarmClockInfo(triggerAt, showIntent), pi)
         } else {
             am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, pi)
         }
     }
 
-    fun cancel(todoId: Long) = am.cancel(pendingIntent(todoId))
+    fun cancel(todoId: Long, sequence: Int = 0) =
+        am.cancel(pendingIntent(todoId, sequence))
 
     fun canScheduleExact(): Boolean =
         Build.VERSION.SDK_INT < 31 || am.canScheduleExactAlarms()
 
-    private fun pendingIntent(todoId: Long) = PendingIntent.getBroadcast(
+    private fun pendingIntent(todoId: Long, sequence: Int) = PendingIntent.getBroadcast(
         context,
-        todoId.toInt(),
+        requestCode(todoId, sequence),
         Intent(context, ReminderReceiver::class.java)
             .setAction(ReminderReceiver.ACTION_FIRE)
-            .putExtra(ReminderReceiver.EXTRA_TODO_ID, todoId),
+            .putExtra(ReminderReceiver.EXTRA_TODO_ID, todoId)
+            .putExtra(ReminderReceiver.EXTRA_REMINDER_SEQUENCE, sequence),
         PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
     )
+
+    private fun requestCode(todoId: Long, sequence: Int): Int =
+        if (sequence == 0) todoId.toInt() else (todoId * 31L + sequence).toInt()
 }

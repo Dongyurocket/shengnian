@@ -30,6 +30,7 @@ interface NoteDao {
         WHERE (:category IS NULL OR n.category = :category)
           AND (:tag IS NULL OR nt.tag = :tag)
           AND (:inspiration IS NULL OR n.isInspiration = :inspiration)
+          AND (:lifecycleStatus IS NULL OR n.lifecycleStatus = :lifecycleStatus)
           AND (:keyword IS NULL OR n.title LIKE '%'||:keyword||'%'
                OR n.content LIKE '%'||:keyword||'%' OR nt.tag LIKE '%'||:keyword||'%')
         ORDER BY n.createdAt DESC
@@ -38,7 +39,8 @@ interface NoteDao {
         category: String?,
         tag: String? = null,
         keyword: String? = null,
-        inspiration: Boolean? = null
+        inspiration: Boolean? = null,
+        lifecycleStatus: com.voiceink.app.data.local.entity.NoteLifecycleStatus? = null
     ): Flow<List<NoteEntity>>
 
     @Query("SELECT * FROM notes WHERE id = :id")
@@ -49,6 +51,13 @@ interface NoteDao {
 
     @Query("UPDATE notes SET category = :category, updatedAt = :now WHERE id = :id")
     suspend fun updateCategory(id: Long, category: String?, now: Long = System.currentTimeMillis())
+
+    @Query("UPDATE notes SET lifecycleStatus = :lifecycleStatus, updatedAt = :now WHERE id = :id")
+    suspend fun updateLifecycleStatus(
+        id: Long,
+        lifecycleStatus: com.voiceink.app.data.local.entity.NoteLifecycleStatus,
+        now: Long = System.currentTimeMillis()
+    )
 
     @Query("SELECT id, title, summary FROM notes WHERE status = 'READY' AND id != :excludeId")
     suspend fun allDigests(excludeId: Long): List<NoteDigest>

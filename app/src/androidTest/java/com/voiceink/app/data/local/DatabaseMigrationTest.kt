@@ -13,7 +13,7 @@ import org.junit.runner.RunWith
 @RunWith(AndroidJUnit4::class)
 class DatabaseMigrationTest {
     @Test
-    fun migrateV3DatabaseToV4PreservesDataAndCreatesTables() {
+    fun migrateV3DatabaseToV5PreservesDataAndCreatesTables() {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
         val name = "migration-${System.currentTimeMillis()}.db"
         val file = context.getDatabasePath(name)
@@ -22,14 +22,27 @@ class DatabaseMigrationTest {
 
         createV3Database(file)
         val database = Room.databaseBuilder(context, AppDatabase::class.java, name)
-            .addMigrations(MIGRATION_3_4)
+            .addMigrations(MIGRATION_3_4, MIGRATION_4_5)
             .build()
         try {
             val migrated = database.openHelper.writableDatabase
-            migrated.query("SELECT rawContent, isInspiration FROM notes WHERE id = 1").use { cursor ->
+            migrated.query("SELECT rawContent, isInspiration, lifecycleStatus FROM notes WHERE id = 1").use { cursor ->
                 assertTrue(cursor.moveToFirst())
                 assertEquals("旧正文", cursor.getString(0))
                 assertEquals(1, cursor.getInt(1))
+                assertEquals("PENDING", cursor.getString(2))
+            }
+            migrated.query("SELECT reminderCount, reminderIntervalMinutes, isAlarm, calendarEventId FROM todos WHERE id = 1").use { cursor ->
+                assertTrue(cursor.moveToFirst())
+                assertEquals(1, cursor.getInt(0))
+                assertEquals(10, cursor.getInt(1))
+                assertEquals(0, cursor.getInt(2))
+                assertTrue(cursor.isNull(3))
+            }
+            migrated.query("SELECT sequence, triggerAt FROM todo_reminders WHERE todoId = 1").use { cursor ->
+                assertTrue(cursor.moveToFirst())
+                assertEquals(0, cursor.getInt(0))
+                assertEquals(4_000_000L, cursor.getLong(1))
             }
             migrated.query("PRAGMA index_list('note_sources')").use { cursor ->
                 var foundUniqueUrlIndex = false
@@ -43,6 +56,10 @@ class DatabaseMigrationTest {
                 assertTrue(foundUniqueUrlIndex)
             }
             migrated.query("PRAGMA foreign_key_list('note_attachments')").use { cursor ->
+                assertTrue(cursor.moveToFirst())
+                assertEquals("CASCADE", cursor.getString(cursor.getColumnIndexOrThrow("on_delete")))
+            }
+            migrated.query("PRAGMA foreign_key_list('todo_reminders')").use { cursor ->
                 assertTrue(cursor.moveToFirst())
                 assertEquals("CASCADE", cursor.getString(cursor.getColumnIndexOrThrow("on_delete")))
             }
@@ -142,6 +159,16 @@ class DatabaseMigrationTest {
                 putNull("intentHint")
                 put("createdAt", 1L)
                 put("updatedAt", 2L)
+            })
+            db.insertOrThrow("todos", null, ContentValues().apply {
+                put("content", "旧待办")
+                put("priority", 1)
+                putNull("deadline")
+                put("remindAt", 4_000_000L)
+                put("remindLeadMinutes", 5)
+                put("done", 0)
+                put("sourceNoteId", 1L)
+                put("createdAt", 3L)
             })
             db.execSQL("PRAGMA user_version = 3")
         } finally {

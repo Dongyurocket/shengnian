@@ -11,6 +11,7 @@ import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -69,6 +70,24 @@ class AnthropicMessagesAdapterTest {
         )
         val body = server.takeRequest().body.readUtf8()
         assertTrue(body.contains("\"thinking\":{\"type\":\"disabled\"}"))
+    }
+
+    @Test
+    fun `启用思考时发送 thinking budget 且不使用 assistant 预填`() = runTest {
+        server.enqueue(
+            MockResponse().setBody("""{"content":[{"type":"text","text":"{}"}],"stop_reason":"end_turn"}""")
+        )
+        adapter.complete(
+            endpoint().copy(
+                thinkingEnabled = true,
+                thinkingEffort = com.voiceink.app.ai.ThinkingEffort.HIGH
+            ),
+            LlmRequest("s", "u", "intent")
+        )
+        val body = server.takeRequest().body.readUtf8()
+        assertTrue(body.contains("\"thinking\":{\"type\":\"enabled\",\"budget_tokens\":4096}"))
+        assertFalse(body.contains("\"temperature\""))
+        assertFalse(body.contains("\"role\":\"assistant\""))
     }
 
     @Test

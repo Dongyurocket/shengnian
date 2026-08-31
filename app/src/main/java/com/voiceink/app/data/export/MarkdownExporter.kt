@@ -10,6 +10,7 @@ import com.voiceink.app.data.local.dao.NoteDao
 import com.voiceink.app.data.local.dao.SourceDao
 import com.voiceink.app.data.local.dao.TagDao
 import com.voiceink.app.data.local.dao.TodoDao
+import com.voiceink.app.data.local.dao.TodoReminderDao
 import com.voiceink.app.data.local.entity.NoteAttachmentEntity
 import com.voiceink.app.data.local.entity.NoteDiagramEntity
 import com.voiceink.app.data.local.entity.NoteEntity
@@ -77,6 +78,7 @@ private data class NoteExport(
     val summary: String?,
     val isInspiration: Boolean,
     val status: String,
+    val lifecycleStatus: String,
     val source: String,
     val intentHint: String?,
     val tags: List<String>,
@@ -95,6 +97,11 @@ private data class TodoExport(
     val deadline: Long?,
     val remindAt: Long?,
     val remindLeadMinutes: Int,
+    val reminderCount: Int,
+    val reminderIntervalMinutes: Int,
+    val isAlarm: Boolean,
+    val calendarEventId: Long?,
+    val reminders: List<Long>,
     val done: Boolean,
     val sourceNoteId: Long?,
     val createdAt: Long
@@ -117,6 +124,7 @@ class MarkdownExporter @Inject constructor(
     @ApplicationContext private val context: Context,
     private val noteDao: NoteDao,
     private val todoDao: TodoDao,
+    private val todoReminderDao: TodoReminderDao,
     private val tagDao: TagDao,
     private val attachmentDao: AttachmentDao,
     private val sourceDao: SourceDao,
@@ -130,6 +138,7 @@ class MarkdownExporter @Inject constructor(
         val dir = DocumentFile.fromTreeUri(context, treeUri) ?: error("无法打开所选目录")
         val notes = noteDao.observeAll().first()
         val todos = todoDao.observeAll().first()
+        val reminderRows = todoReminderDao.observeAll().first().groupBy { it.todoId }
         val attachmentDir = dir.findFile("attachments")?.takeIf { it.isDirectory }
             ?: dir.createDirectory("attachments")
         val failures = mutableListOf<String>()
@@ -167,6 +176,7 @@ class MarkdownExporter @Inject constructor(
                 summary = note.summary,
                 isInspiration = note.isInspiration,
                 status = note.status.name,
+                lifecycleStatus = note.lifecycleStatus.name,
                 source = note.source,
                 intentHint = note.intentHint,
                 tags = tags,
@@ -191,6 +201,11 @@ class MarkdownExporter @Inject constructor(
                     deadline = todo.deadline,
                     remindAt = todo.remindAt,
                     remindLeadMinutes = todo.remindLeadMinutes,
+                    reminderCount = todo.reminderCount,
+                    reminderIntervalMinutes = todo.reminderIntervalMinutes,
+                    isAlarm = todo.isAlarm,
+                    calendarEventId = todo.calendarEventId,
+                    reminders = reminderRows[todo.id].orEmpty().map { it.triggerAt },
                     done = todo.done,
                     sourceNoteId = todo.sourceNoteId,
                     createdAt = todo.createdAt
@@ -226,6 +241,7 @@ class MarkdownExporter @Inject constructor(
             append("created: ").append(yaml(TimeUtils.formatDateTime(note.createdAt))).append('\n')
             append("inspiration: ").append(note.isInspiration).append('\n')
             append("status: ").append(note.status.name).append('\n')
+            append("lifecycle_status: ").append(note.lifecycleStatus.name).append('\n')
             append("source: ").append(yaml(note.source)).append('\n')
             note.category?.let { append("category: ").append(yaml(it)).append('\n') }
             note.type?.let { append("type: ").append(yaml(it)).append('\n') }

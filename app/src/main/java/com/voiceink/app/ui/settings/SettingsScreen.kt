@@ -49,6 +49,7 @@ import com.voiceink.app.BuildConfig
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.voiceink.app.ai.LlmProtocol
+import com.voiceink.app.ai.ThinkingEffort
 import com.voiceink.app.update.UpdateInfo
 import com.voiceink.app.ui.theme.Accent
 import com.voiceink.app.ui.theme.Accent12
@@ -156,6 +157,44 @@ fun SettingsScreen(
                 label = "模型",
                 placeholder = "gpt-4o-mini / deepseek-chat / claude-sonnet-4-5"
             )
+            Spacer(Modifier.height(12.dp))
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                Column(Modifier.weight(1f)) {
+                    Text("启用模型思考", fontSize = 13.5.sp, color = Ink)
+                    Text("控制支持 reasoning/thinking 的模型", fontSize = 10.5.sp, color = Faint)
+                }
+                Switch(
+                    checked = ui.thinkingEnabled,
+                    onCheckedChange = { value -> vm.update { it.copy(thinkingEnabled = value) } },
+                    colors = SwitchDefaults.colors(checkedTrackColor = Accent)
+                )
+            }
+            if (ui.thinkingEnabled) {
+                Spacer(Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(7.dp)
+                ) {
+                    ThinkingEffort.entries.forEach { effort ->
+                        val selected = ui.thinkingEffort == effort
+                        Box(
+                            contentAlignment = Alignment.Center,
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(30.dp)
+                                .clip(RoundedCornerShape(VoiceInkRadius.Chip))
+                                .background(if (selected) Accent12 else Paper2)
+                                .clickable { vm.update { it.copy(thinkingEffort = effort) } }
+                        ) {
+                            Text(
+                                effort.label,
+                                fontSize = 11.sp,
+                                color = if (selected) Accent else Muted
+                            )
+                        }
+                    }
+                }
+            }
             Spacer(Modifier.height(12.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(

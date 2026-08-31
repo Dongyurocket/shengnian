@@ -69,6 +69,21 @@ class OpenAiChatAdapterTest {
     }
 
     @Test
+    fun `启用思考时发送 reasoning_effort 并省略 temperature`() = runTest {
+        server.enqueue(
+            MockResponse().setBody("""{"choices":[{"message":{"content":"{}"},"finish_reason":"stop"}]}""")
+        )
+        adapter.complete(
+            endpoint().copy(thinkingEnabled = true, thinkingEffort = com.voiceink.app.ai.ThinkingEffort.HIGH),
+            LlmRequest("s", "u", "intent")
+        )
+        val body = server.takeRequest().body.readUtf8()
+        assertTrue(body.contains("\"reasoning_effort\":\"high\""))
+        assertTrue(body.contains("\"max_tokens\":6144"))
+        assertFalse(body.contains("\"temperature\""))
+    }
+
+    @Test
     fun `429 映射为可重试错误`() = runTest {
         server.enqueue(
             MockResponse().setResponseCode(429)

@@ -26,35 +26,40 @@ object NotificationHelper {
         }
     }
 
-    fun showTodoReminder(context: Context, todo: TodoEntity) {
+    fun showTodoReminder(context: Context, todo: TodoEntity, sequence: Int = 0) {
         ensureChannel(context)
         val nm = context.getSystemService(NotificationManager::class.java)
+        val notificationId = notificationId(todo.id, sequence)
 
         val openApp = PendingIntent.getActivity(
-            context, todo.id.toInt(),
+            context, notificationId,
             Intent(context, MainActivity::class.java),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
-        val doneAction = actionIntent(context, todo.id, ReminderReceiver.ACTION_COMPLETE, "完成")
-        val snoozeAction = actionIntent(context, todo.id, ReminderReceiver.ACTION_SNOOZE, "延期 10 分钟")
+        val doneAction = actionIntent(context, todo.id, sequence, ReminderReceiver.ACTION_COMPLETE)
+        val snoozeAction = actionIntent(context, todo.id, sequence, ReminderReceiver.ACTION_SNOOZE)
 
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_notification)
-            .setContentTitle("待办提醒")
+            .setContentTitle(if (todo.isAlarm) "闹钟" else "待办提醒")
             .setContentText(todo.content)
             .setContentIntent(openApp)
             .setAutoCancel(true)
             .addAction(NotificationCompat.Action(R.drawable.ic_notification, "完成", doneAction))
             .addAction(NotificationCompat.Action(R.drawable.ic_notification, "延期 10 分钟", snoozeAction))
             .build()
-        nm.notify(todo.id.toInt(), notification)
+        nm.notify(notificationId, notification)
     }
 
-    private fun actionIntent(context: Context, todoId: Long, action: String, label: String): PendingIntent {
+    fun notificationId(todoId: Long, sequence: Int): Int =
+        if (sequence == 0) todoId.toInt() else (todoId * 31L + sequence).toInt()
+
+    private fun actionIntent(context: Context, todoId: Long, sequence: Int, action: String): PendingIntent {
         val intent = Intent(context, ReminderReceiver::class.java)
             .setAction(action)
             .putExtra(ReminderReceiver.EXTRA_TODO_ID, todoId)
-        val requestCode = (todoId.toInt() * 31) xor action.hashCode()
+            .putExtra(ReminderReceiver.EXTRA_REMINDER_SEQUENCE, sequence)
+        val requestCode = notificationId(todoId, sequence) xor action.hashCode()
         return PendingIntent.getBroadcast(
             context, requestCode, intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE

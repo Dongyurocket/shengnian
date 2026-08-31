@@ -31,6 +31,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.AutoAwesome
+import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.Image
 import androidx.compose.material3.AlertDialog
@@ -59,6 +60,7 @@ import com.voiceink.app.ai.ImagePayloadEncoder
 import com.voiceink.app.core.TimeUtils
 import com.voiceink.app.data.local.entity.NoteStatus
 import com.voiceink.app.ui.home.MetaChip
+import com.voiceink.app.ui.note.NoteLifecycleStatusDialog
 import com.voiceink.app.ui.theme.Accent
 import com.voiceink.app.ui.theme.Accent06
 import com.voiceink.app.ui.theme.Accent12
@@ -97,9 +99,13 @@ fun NoteDetailScreen(
     val diagramState by vm.diagramState.collectAsStateWithLifecycle()
     val attachmentError by vm.attachmentError.collectAsStateWithLifecycle()
     val attachmentBusy by vm.attachmentBusy.collectAsStateWithLifecycle()
+    val deleting by vm.deleting.collectAsStateWithLifecycle()
+    val deleteError by vm.deleteError.collectAsStateWithLifecycle()
     val context = LocalContext.current
     var editingCategory by remember { mutableStateOf(false) }
     var editingNote by remember { mutableStateOf(false) }
+    var showDeleteConfirm by remember { mutableStateOf(false) }
+    var editingLifecycleStatus by remember { mutableStateOf(false) }
     val imagePicker = rememberLauncherForActivityResult(
         ActivityResultContracts.PickVisualMedia()
     ) { uri -> uri?.let(vm::addAttachment) }
@@ -138,6 +144,13 @@ fun NoteDetailScreen(
                         tint = Ink2
                     )
                 }
+                IconButton(onClick = { showDeleteConfirm = true }, enabled = !deleting) {
+                    Icon(
+                        imageVector = Icons.Outlined.Delete,
+                        contentDescription = "删除笔记",
+                        tint = if (deleting) Faint else Ink2
+                    )
+                }
             }
         }
 
@@ -146,6 +159,15 @@ fun NoteDetailScreen(
                 Text("笔记不存在或已转为待办", color = Muted, fontSize = 13.5.sp)
             }
             return@Column
+        }
+
+        deleteError?.let { message ->
+            Text(
+                message,
+                color = Accent,
+                fontSize = 11.sp,
+                modifier = Modifier.padding(horizontal = 18.dp, vertical = 4.dp)
+            )
         }
 
         Column(
@@ -201,6 +223,10 @@ fun NoteDetailScreen(
                 if (n.isInspiration) {
                     MetaChip(text = "灵感")
                 }
+                MetaChip(
+                    text = n.lifecycleStatus.label,
+                    onClick = { editingLifecycleStatus = true }
+                )
                 for (t in tags) {
                     MetaChip(text = t)
                 }
@@ -368,11 +394,51 @@ fun NoteDetailScreen(
         }
     }
 
+    if (showDeleteConfirm && n != null) {
+        AlertDialog(
+            onDismissRequest = { if (!deleting) showDeleteConfirm = false },
+            title = { Text("删除笔记？") },
+            text = {
+                Text(
+                    "删除后笔记正文、附件和关联记录将被移除；来源于它的待办会保留，与其它笔记的关联也会解除。",
+                    fontSize = 13.sp
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showDeleteConfirm = false
+                        vm.delete(onBack)
+                    },
+                    enabled = !deleting
+                ) {
+                    Text(if (deleting) "删除中…" else "删除", color = if (deleting) Faint else Accent)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfirm = false }, enabled = !deleting) {
+                    Text("取消", color = Muted)
+                }
+            }
+        )
+    }
+
     if (editingCategory) {
         CategoryEditDialog(
             current = note?.category,
             onDismiss = { editingCategory = false },
             onSave = { vm.updateCategory(it); editingCategory = false }
+        )
+    }
+
+    if (editingLifecycleStatus && n != null) {
+        NoteLifecycleStatusDialog(
+            current = n.lifecycleStatus,
+            onDismiss = { editingLifecycleStatus = false },
+            onSave = { status ->
+                editingLifecycleStatus = false
+                vm.updateLifecycleStatus(status)
+            }
         )
     }
 

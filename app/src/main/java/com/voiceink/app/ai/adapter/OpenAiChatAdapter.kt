@@ -102,13 +102,20 @@ class OpenAiChatAdapter @Inject constructor(
         if (useResponseFormat) {
             putJsonObject("response_format") { put("type", "json_object") }
         }
-        put("temperature", request.temperature)
+        if (!endpoint.thinkingEnabled) put("temperature", request.temperature)
         if (isDeepSeekEndpoint(endpoint)) {
-            // DeepSeek V4 默认思考，关闭后将 max_tokens 留给结构化正文。
-            putJsonObject("thinking") { put("type", "disabled") }
+            // DeepSeek 兼容接口用 thinking.type 控制开关。
+            putJsonObject("thinking") {
+                put("type", if (endpoint.thinkingEnabled) "enabled" else "disabled")
+            }
+        } else if (endpoint.thinkingEnabled) {
+            // OpenAI 兼容 reasoning 模型使用 reasoning_effort。
+            put("reasoning_effort", endpoint.thinkingEffort.wire)
         }
-        if (useCompletionTokens) put("max_completion_tokens", request.maxTokens)
-        else put("max_tokens", request.maxTokens)
+        val outputTokens = request.maxTokens +
+            if (endpoint.thinkingEnabled) endpoint.thinkingEffort.budgetTokens else 0
+        if (useCompletionTokens) put("max_completion_tokens", outputTokens)
+        else put("max_tokens", outputTokens)
     }
 
     private fun parse(resp: JsonObject): LlmResult {

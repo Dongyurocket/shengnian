@@ -23,9 +23,20 @@ class BootReceiver : BroadcastReceiver() {
         CoroutineScope(Dispatchers.IO).launch {
             try {
                 val now = System.currentTimeMillis()
-                todoRepository.pendingReminders()
-                    .filter { (it.remindAt ?: 0L) > now }
-                    .forEach { scheduler.schedule(it.id, it.remindAt!!) }
+                todoRepository.pendingReminders().forEach { todo ->
+                    val reminders = todoRepository.listReminders(todo.id)
+                    if (reminders.isEmpty()) {
+                        todo.remindAt?.takeIf { it > now }?.let {
+                            scheduler.schedule(todo.id, 0, it, todo.isAlarm)
+                        }
+                    } else {
+                        reminders
+                            .filter { it.triggerAt > now }
+                            .forEach { item ->
+                                scheduler.schedule(todo.id, item.sequence, item.triggerAt, todo.isAlarm)
+                            }
+                    }
+                }
             } finally {
                 pendingResult.finish()
             }

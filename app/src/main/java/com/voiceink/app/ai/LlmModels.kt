@@ -15,11 +15,23 @@ enum class LlmProtocol(val label: String) {
     ANTHROPIC_MESSAGES("Anthropic Messages")
 }
 
+enum class ThinkingEffort(
+    val wire: String,
+    val label: String,
+    val budgetTokens: Int
+) {
+    LOW("low", "低", 1024),
+    MEDIUM("medium", "中", 2048),
+    HIGH("high", "高", 4096)
+}
+
 data class LlmEndpoint(
     val baseUrl: String,
     val apiKey: String,
     val model: String,
-    val protocol: LlmProtocol
+    val protocol: LlmProtocol,
+    val thinkingEnabled: Boolean = false,
+    val thinkingEffort: ThinkingEffort = ThinkingEffort.MEDIUM
 )
 
 data class EmbeddingEndpoint(

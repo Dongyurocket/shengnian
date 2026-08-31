@@ -26,14 +26,19 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.CheckBox
+import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -48,6 +53,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.voiceink.app.core.TimeUtils
 import com.voiceink.app.data.local.entity.NoteEntity
+import com.voiceink.app.data.local.entity.NoteLifecycleStatus
 import com.voiceink.app.data.local.entity.NoteStatus
 import com.voiceink.app.ui.theme.Accent
 import com.voiceink.app.ui.theme.Accent06
@@ -62,6 +68,7 @@ import com.voiceink.app.ui.theme.SerifFamily
 import com.voiceink.app.ui.theme.SurfaceCard
 import com.voiceink.app.ui.theme.VoiceInkRadius
 import com.voiceink.app.ui.theme.VoiceInkTextStyles
+import com.voiceink.app.ui.note.NoteLifecycleStatusDialog
 
 /**
  * 屏 01 首页 · 灵感笔记流。
@@ -84,7 +91,14 @@ fun HomeScreen(
     val selectedIds by vm.selectedIds.collectAsStateWithLifecycle()
     val actionMessage by vm.actionMessage.collectAsStateWithLifecycle()
     val merging by vm.merging.collectAsStateWithLifecycle()
+    val listMode by vm.listMode.collectAsStateWithLifecycle()
+    val sections by vm.sections.collectAsStateWithLifecycle()
+    val relatedCounts by vm.relatedCounts.collectAsStateWithLifecycle()
+    val lifecycleStatus by vm.lifecycleStatus.collectAsStateWithLifecycle()
     var showMergeConfirm by androidx.compose.runtime.remember { mutableStateOf(false) }
+    var deleteNote by androidx.compose.runtime.remember { mutableStateOf<NoteEntity?>(null) }
+    var categoryNote by androidx.compose.runtime.remember { mutableStateOf<NoteEntity?>(null) }
+    var lifecycleNote by androidx.compose.runtime.remember { mutableStateOf<NoteEntity?>(null) }
 
     LazyColumn(
         modifier = Modifier
@@ -121,6 +135,19 @@ fun HomeScreen(
             )
         }
 
+        item {
+            ListModeSelector(
+                selected = listMode,
+                onSelect = vm::setListMode
+            )
+        }
+        item {
+            LifecycleFilterChips(
+                selected = lifecycleStatus,
+                onSelect = vm::selectLifecycleStatus
+            )
+        }
+
         if (actionMessage != null) {
             item {
                 Text(
@@ -133,16 +160,22 @@ fun HomeScreen(
         }
 
         if (notes.isEmpty()) {
-            item { EmptyHint(searching = keyword.isNotBlank() || selected != null || inspirationOnly) }
+            item {
+                EmptyHint(
+                    searching = keyword.isNotBlank() || selected != null ||
+                        inspirationOnly || lifecycleStatus != null
+                )
+            }
         } else {
-            val grouped = notes.groupBy { TimeUtils.dayLabel(it.createdAt) }
-            for (label in listOf("今天", "昨天", "更早")) {
-                val dayNotes = grouped[label] ?: continue
-                item { SectionLabel(label) }
-                items(dayNotes, key = { it.id }) { note ->
+            for (section in sections) {
+                item(key = "section-${section.label}") {
+                    SectionLabel(section.label, section.notes.size)
+                }
+                items(section.notes, key = { it.id }) { note ->
                     NoteCard(
                         note = note,
                         openTodos = todoCounts[note.id] ?: 0,
+                        relatedCount = relatedCounts[note.id] ?: 0,
                         selected = note.id in selectedIds,
                         selectionMode = selectionMode,
                         onClick = {
@@ -152,7 +185,10 @@ fun HomeScreen(
                                 onOpenNote(note.id)
                             }
                         },
-                        onRetry = { vm.retryOrganize(note.id) }
+                        onRetry = { vm.retryOrganize(note.id) },
+                        onDelete = { deleteNote = note },
+                        onEditCategory = { categoryNote = note },
+                        onEditLifecycle = { lifecycleNote = note }
                     )
                     Spacer(Modifier.height(11.dp))
                 }
@@ -178,6 +214,50 @@ fun HomeScreen(
             },
             dismissButton = {
                 TextButton(onClick = { showMergeConfirm = false }) { Text("取消", color = Muted) }
+            }
+        )
+    }
+
+    deleteNote?.let { note ->
+        AlertDialog(
+            onDismissRequest = { deleteNote = null },
+            title = { Text("删除笔记？") },
+            text = {
+                Text(
+                    "删除后笔记正文、附件和关联记录将被移除；来源于它的待办会保留，与其它笔记的关联也会解除。",
+                    fontSize = 13.sp
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    deleteNote = null
+                    vm.delete(note)
+                }) { Text("删除", color = Accent) }
+            },
+            dismissButton = {
+                TextButton(onClick = { deleteNote = null }) { Text("取消", color = Muted) }
+            }
+        )
+    }
+
+    categoryNote?.let { note ->
+        ListCategoryEditDialog(
+            current = note.category,
+            onDismiss = { categoryNote = null },
+            onSave = { category ->
+                categoryNote = null
+                vm.updateCategory(note.id, category)
+            }
+        )
+    }
+
+    lifecycleNote?.let { note ->
+        NoteLifecycleStatusDialog(
+            current = note.lifecycleStatus,
+            onDismiss = { lifecycleNote = null },
+            onSave = { status ->
+                lifecycleNote = null
+                vm.updateLifecycleStatus(note.id, status)
             }
         )
     }
@@ -290,6 +370,70 @@ private fun SearchBox(keyword: String, onChange: (String) -> Unit) {
 }
 
 @Composable
+private fun ListModeSelector(
+    selected: NoteListMode,
+    onSelect: (NoteListMode) -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(34.dp)
+            .clip(RoundedCornerShape(VoiceInkRadius.Input))
+            .background(Paper2)
+            .border(1.dp, Line, RoundedCornerShape(VoiceInkRadius.Input))
+            .padding(3.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        NoteListMode.entries.forEach { mode ->
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .height(27.dp)
+                    .clip(RoundedCornerShape(VoiceInkRadius.Chip))
+                    .background(if (selected == mode) Ink else Color.Transparent)
+                    .clickable { onSelect(mode) }
+            ) {
+                Text(
+                    mode.label,
+                    fontSize = 11.sp,
+                    color = if (selected == mode) Color.White else Muted,
+                    fontWeight = if (selected == mode) FontWeight.Medium else FontWeight.Normal
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun LifecycleFilterChips(
+    selected: NoteLifecycleStatus?,
+    onSelect: (NoteLifecycleStatus?) -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState())
+            .padding(top = 9.dp, bottom = 7.dp),
+        horizontalArrangement = Arrangement.spacedBy(7.dp)
+    ) {
+        FilterChip(
+            text = "全部状态",
+            selected = selected == null,
+            onClick = { onSelect(null) }
+        )
+        NoteLifecycleStatus.entries.forEach { status ->
+            FilterChip(
+                text = status.label,
+                selected = selected == status,
+                onClick = { onSelect(status) }
+            )
+        }
+    }
+}
+
+@Composable
 private fun FilterChips(
     categories: List<String>,
     selected: String?,
@@ -341,22 +485,31 @@ fun FilterChip(text: String, selected: Boolean, onClick: () -> Unit) {
 }
 
 @Composable
-private fun SectionLabel(text: String) {
-    Text(
-        text = text,
-        style = VoiceInkTextStyles.SectionLabel,
-        modifier = Modifier.padding(top = 5.dp, bottom = 12.dp)
-    )
+private fun SectionLabel(text: String, count: Int) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 5.dp, bottom = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(text, style = VoiceInkTextStyles.SectionLabel)
+        Spacer(Modifier.weight(1f))
+        Text("$count", fontSize = 10.5.sp, color = Faint)
+    }
 }
 
 @Composable
 private fun NoteCard(
     note: NoteEntity,
     openTodos: Int,
+    relatedCount: Int,
     selected: Boolean,
     selectionMode: Boolean,
     onClick: () -> Unit,
-    onRetry: () -> Unit
+    onRetry: () -> Unit,
+    onDelete: () -> Unit,
+    onEditCategory: () -> Unit,
+    onEditLifecycle: () -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -381,6 +534,14 @@ private fun NoteCard(
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f)
             )
+            IconButton(onClick = onDelete, modifier = Modifier.size(30.dp)) {
+                Icon(
+                    Icons.Outlined.Delete,
+                    contentDescription = "删除笔记",
+                    tint = Faint,
+                    modifier = Modifier.size(17.dp)
+                )
+            }
             if (selectionMode && note.status == NoteStatus.READY) {
                 Spacer(Modifier.width(8.dp))
                 Icon(
@@ -405,13 +566,23 @@ private fun NoteCard(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
                 .fillMaxWidth()
+                .horizontalScroll(rememberScrollState())
                 .padding(top = 12.dp)
         ) {
             Text(TimeUtils.timeOfDay(note.createdAt), style = VoiceInkTextStyles.Meta)
             note.category?.let {
                 Spacer(Modifier.width(8.dp))
-                MetaChip(text = it)
+                MetaChip(text = it, onClick = onEditCategory)
+            } ?: run {
+                Spacer(Modifier.width(8.dp))
+                MetaChip(text = "未分类", onClick = onEditCategory)
             }
+            if (relatedCount > 0) {
+                Spacer(Modifier.width(8.dp))
+                MetaChip(text = "关联 $relatedCount")
+            }
+            Spacer(Modifier.width(8.dp))
+            MetaChip(text = note.lifecycleStatus.label, onClick = onEditLifecycle)
             when (note.status) {
                 NoteStatus.PENDING_AI -> {
                     Spacer(Modifier.width(8.dp))
@@ -454,17 +625,57 @@ private fun StatusChip(text: String, onClick: (() -> Unit)?) {
 }
 
 @Composable
-fun MetaChip(text: String) {
+fun MetaChip(text: String, onClick: (() -> Unit)? = null) {
     Box(
         contentAlignment = Alignment.Center,
         modifier = Modifier
             .height(23.dp)
             .clip(RoundedCornerShape(VoiceInkRadius.Chip))
             .background(Paper2)
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
             .padding(horizontal = 9.dp)
     ) {
-        Text(text, style = VoiceInkTextStyles.Chip, color = Muted)
+        Text(text, style = VoiceInkTextStyles.Chip, color = Muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
+}
+
+@Composable
+private fun ListCategoryEditDialog(
+    current: String?,
+    onDismiss: () -> Unit,
+    onSave: (String?) -> Unit
+) {
+    var text by remember { mutableStateOf(current.orEmpty()) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = SurfaceCard,
+        title = { Text("归类笔记", style = VoiceInkTextStyles.NoteTitle) },
+        text = {
+            TextField(
+                value = text,
+                onValueChange = { text = it },
+                singleLine = true,
+                placeholder = { Text("如：产品 / 阅读 / 生活", fontSize = 13.5.sp, color = Faint) },
+                shape = RoundedCornerShape(VoiceInkRadius.Input),
+                colors = TextFieldDefaults.colors(
+                    focusedContainerColor = Paper2,
+                    unfocusedContainerColor = Paper2,
+                    focusedIndicatorColor = Color.Transparent,
+                    unfocusedIndicatorColor = Color.Transparent,
+                    cursorColor = Accent
+                ),
+                modifier = Modifier.fillMaxWidth()
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = { onSave(text.trim().ifBlank { null }) }) {
+                Text("保存", color = Accent)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("取消", color = Muted) }
+        }
+    )
 }
 
 @Composable

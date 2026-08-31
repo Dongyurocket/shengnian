@@ -72,6 +72,24 @@ class OpenAiResponsesAdapterTest {
     }
 
     @Test
+    fun `启用思考时发送 reasoning effort 并省略 temperature`() = runTest {
+        server.enqueue(
+            MockResponse().setBody("""{"status":"completed","output_text":"{}"}""")
+        )
+        adapter.complete(
+            endpoint().copy(
+                thinkingEnabled = true,
+                thinkingEffort = com.voiceink.app.ai.ThinkingEffort.LOW
+            ),
+            LlmRequest("s", "u", "intent")
+        )
+        val body = server.takeRequest().body.readUtf8()
+        assertTrue(body.contains("\"reasoning\":{\"effort\":\"low\"}"))
+        assertTrue(body.contains("\"max_output_tokens\":3072"))
+        assertFalse(body.contains("\"temperature\""))
+    }
+
+    @Test
     fun `便捷字段 output_text 直返时优先使用`() = runTest {
         server.enqueue(
             MockResponse().setBody(

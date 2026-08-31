@@ -62,6 +62,14 @@ class JsonExtractorTest {
     }
 
     @Test
+    fun `todo alarm flag is parsed separately from a regular reminder`() {
+        val alarm = JsonExtractor.extractIntent(
+            """{"intent":"todo","content":"起床","priority":1,"deadline":"2030-01-15 07:50","is_alarm":true,"remind_lead_minutes":-1}"""
+        ) as ParsedIntent.Todo
+        assertTrue(alarm.isAlarm)
+        assertNull(alarm.remindLeadMinutes)
+    }
+    @Test
     fun `无法解析返回 Unparseable`() {
         assertEquals(ParsedIntent.Unparseable, JsonExtractor.extractIntent("这根本不是 JSON"))
         assertEquals(ParsedIntent.Unparseable, JsonExtractor.extractIntent("""{"foo":"bar"}"""))

@@ -259,9 +259,24 @@ class AiPipeline @Inject constructor(
     }
 
     private suspend fun scheduleReminderIfPossible(todoId: Long) {
-        val triggerAt = todos.byId(todoId)?.remindAt ?: return
+        val todo = todos.byId(todoId) ?: return
+        val reminders = todos.listReminders(todoId)
+        if (reminders.isEmpty()) {
+            todo.remindAt?.takeIf { it > System.currentTimeMillis() }?.let {
+                try {
+                    reminder.schedule(todo.id, 0, it, todo.isAlarm)
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (_: Exception) {
+                    // 待办已经落库；开机重排或用户后续编辑仍可恢复提醒。
+                }
+            }
+            return
+        }
         try {
-            reminder.schedule(todoId, triggerAt)
+            reminders.filter { it.triggerAt > System.currentTimeMillis() }.forEach { item ->
+                reminder.schedule(todo.id, item.sequence, item.triggerAt, todo.isAlarm)
+            }
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (_: Exception) {
@@ -269,9 +284,14 @@ class AiPipeline @Inject constructor(
         }
     }
 
-    private fun cancelReminderIfPossible(todoId: Long) {
+    private suspend fun cancelReminderIfPossible(todoId: Long) {
         try {
-            reminder.cancel(todoId)
+            val reminders = todos.listReminders(todoId)
+            if (reminders.isEmpty()) {
+                reminder.cancel(todoId)
+            } else {
+                reminders.forEach { item -> reminder.cancel(todoId, item.sequence) }
+            }
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (_: Exception) {

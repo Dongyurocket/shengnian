@@ -2,9 +2,9 @@
 
 > 本计划建立在已完成的 `2026-08-30-ai-voice-note-app.md` MVP 计划之上，针对 2026-08-31 三张需求截图执行后续迭代。
 
-**Goal:** 在已完成的声念 MVP 基线上，落地截图中提出的链接提炼、笔记编辑后二次整理、图片识别、AI 图表、灵感归类和多笔记合并能力。
+**Goal:** 在已完成的声念 MVP 基线上，落地截图中提出的链接提炼、笔记编辑后二次整理、图片识别、AI 图表、灵感归类和多笔记合并能力，并补齐待办编辑、多次精确提醒、系统闹钟、手机日历同步、模型思考配置和笔记生命周期状态。
 
-**Architecture:** 保留现有 MVVM + Room + WorkManager + `LlmGateway` 三协议适配器架构。新增来源链接、图片附件、图表三个本地实体；将多模态输入收敛到 `LlmRequest.images`，由三种适配器分别转换为各自协议的图片内容块。URL 抓取和图片复制均在本地受限处理，AI 仍通过现有后台流水线异步执行；图表使用结构化 JSON 和 Compose Canvas 原生渲染。
+**Architecture:** 保留现有 MVVM + Room + WorkManager + `LlmGateway` 三协议适配器架构。新增来源链接、图片附件、图表和待办提醒等本地实体；将多模态输入收敛到 `LlmRequest.images`，由三种适配器分别转换为各自协议的图片内容块。URL 抓取和图片复制均在本地受限处理，AI 仍通过现有后台流水线异步执行；图表使用结构化 JSON 和 Compose Canvas 原生渲染。提醒由 `AlarmManager` 统一调度，系统闹钟使用 `AlarmClockInfo`，日历同步通过获得授权后的 `CalendarProvider` 完成；模型思考配置由 `DataStore` 贯穿三种 LLM 协议。
 
 **Tech Stack:** Kotlin 2.0.21 · Jetpack Compose / Material3 · Room 2.6.1 · WorkManager · OkHttp · kotlinx.serialization · Android Photo Picker · Android BitmapFactory / Canvas · JUnit / MockWebServer。
 
@@ -330,7 +330,7 @@ Expected: 生成 `app/build/outputs/apk/debug/app-debug.apk`。
 
 ---
 
-## 收尾验证状态（2026-08-31）
+## 收尾验证状态：链接、图片、图表与合并（2026-08-31）
 
 - [x] JVM 单元测试：68 个通过
 - [x] `:app:compileDebugKotlin`
@@ -338,9 +338,36 @@ Expected: 生成 `app/build/outputs/apk/debug/app-debug.apk`。
 - [x] `:app:lintDebug`
 - [x] `:app:assembleDebug`
 - [x] 独立只读审查：已收敛；已处理网络异常重试、强制笔记重试、条件删除/临时待办、Room transaction、固定 DNS、附件方向/透明度、导出并发和输出边界问题
-- [x] `:app:connectedDebugAndroidTest`：真实设备 NX721J（Android 14）通过，1/1 测试成功
-- [x] 设备基础 UI 走查：测试包可启动，首页、速记、设置、详情和编辑弹窗可打开；本地输入保存后能回到首页并显示失败重试状态
+- [x] 历史真机 `NX721J`（Android 14）：`:app:connectedDebugAndroidTest` 通过，1/1 测试成功
+- [x] 历史设备基础 UI 走查：测试包可启动，首页、速记、设置、详情和编辑弹窗可打开；本地输入保存后能回到首页并显示失败重试状态
 - [ ] 真实 OpenAI/Anthropic/视觉模型端点兼容性：当前仅完成 MockWebServer 契约验证
 
+## 后续需求实现：待办、系统集成、模型思考与生命周期
+
+### 实现范围
+
+- `TodoEntity` 保留旧的 `deadline`、`remindAt`、`remindLeadMinutes` 字段，同时增加 `isAlarm`、`calendarEventId` 等系统集成字段；`TodoReminderEntity` 独立保存 `todoId`、序号和每次具体 `triggerAt`。
+- `TodoScreen` / `TodoViewModel` 提供待办内容、截止时间、提醒次数、提醒间隔和逐条提醒时间编辑；未手动指定时间时按截止时间和间隔生成提醒，旧数据回退为单提醒。
+- `ReminderScheduler`、`ReminderReceiver`、`BootReceiver` 统一处理多次调度、开机恢复、完成、删除和延期；明确闹钟意图使用 `AlarmManager.setAlarmClock` / `AlarmClockInfo`。
+- `CalendarSyncRepository` 在 `READ_CALENDAR` / `WRITE_CALENDAR` 授权后创建、更新和取消系统日历事件；同步失败不阻止本地待办保存。
+- `SettingsRepository` / `SettingsViewModel` / `SettingsScreen` 通过 DataStore 保存模型思考开关和低 / 中 / 高强度；`OpenAiChatAdapter`、`OpenAiResponsesAdapter`、`AnthropicMessagesAdapter` 映射各协议的 reasoning / thinking 参数，思考模式省略普通 `temperature`。
+- `NoteLifecycleStatus` 独立于 AI 处理状态，支持 `PENDING`、`COMPLETED`、`ABANDONED`；首页筛选、卡片修改、详情页修改和 Markdown 导出均保留该状态。
+
+### 数据库与兼容迁移
+
+- 当前 Room schema version 为 `5`，`AppDatabase` 注册 `TodoReminderEntity`，并通过 `DatabaseMigrations.MIGRATION_4_5` 创建 `todo_reminders` 表、补充待办系统集成字段和笔记生命周期字段的兼容迁移。
+- 旧待办数据继续读取旧提醒字段；新调度逻辑在没有独立提醒记录时回退生成一条提醒，不要求清空已有数据库。
+- 相关核心文件：`AppDatabase.kt`、`DatabaseMigrations.kt`、`TodoEntity.kt`、`TodoReminderEntity.kt`、`TodoDao.kt`、`TodoReminderDao.kt`、`TodoRepository.kt`、`NoteEntity.kt`。
+
+### 验证结果（2026-08-31）
+
+- [x] `./gradlew :app:testDebugUnitTest --no-daemon`：`80 tests completed, 0 failed`
+- [x] `./gradlew :app:compileDebugAndroidTestKotlin --no-daemon`
+- [x] `./gradlew :app:assembleDebug --no-daemon`：Debug APK 生成成功
+- [x] 真机 `RMX5062` 使用独立包 `com.voiceink.app.test`：DeepSeek Chat 连接测试成功；SiliconFlow Embedding 连接测试成功，向量维度 `4096`
+- [x] 自然语言「明天早上 7:50 起床」成功分流为待办并落库；编辑后保存 3 条具体提醒时间，`dumpsys alarm` 显示 3 条带 `AlarmClock` 的精确 `RTC_WAKEUP` 闹钟，`exactAllowReason=permission`
+- [x] CalendarProvider 查询到对应事件，事件描述包含 3 条提醒时间；删除临时测试待办后，设备上未保留测试事件和提醒
+- [x] 修复跨自然日截止标签，并补充 `TimeUtilsTest`；时间标签现在正确区分「今天」「明天」「已过期」
+- [ ] 设备重启后恢复和等待实际到点触发通知的长时测试：当前未执行
 
 本轮不实现：云同步、后台自动上传第三方文件、通用网页浏览器、任意代码/HTML 执行、自动删除原笔记、Proma Skill 动态安装。若某个 LLM 端点不支持视觉输入，应用保留附件并将失败原因展示给用户，用户可切换到支持视觉的模型后重新整理。

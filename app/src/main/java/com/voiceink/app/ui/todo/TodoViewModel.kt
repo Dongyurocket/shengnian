@@ -3,54 +3,152 @@ package com.voiceink.app.ui.todo
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.voiceink.app.data.local.entity.TodoEntity
+import com.voiceink.app.data.local.entity.TodoReminderEntity
+import com.voiceink.app.data.repo.CalendarSyncRepository
 import com.voiceink.app.data.repo.TodoRepository
 import com.voiceink.app.reminder.ReminderScheduler
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+data class TodoEditInput(
+    val content: String,
+    val deadline: Long?,
+    val reminders: List<Long>,
+    val reminderCount: Int,
+    val reminderIntervalMinutes: Int,
+    val isAlarm: Boolean,
+    val syncCalendar: Boolean
+)
+
+fun reminderTimesFrom(firstAt: Long, count: Int, intervalMinutes: Int): List<Long> {
+    val safeCount = count.coerceIn(0, TodoRepository.MAX_REMINDERS)
+    val safeInterval = intervalMinutes.coerceIn(1, TodoRepository.MAX_INTERVAL_MINUTES)
+    return (0 until safeCount).map { index ->
+        firstAt + index * safeInterval * 60_000L
+    }
+}
+
 @HiltViewModel
 class TodoViewModel @Inject constructor(
     private val repo: TodoRepository,
-    private val reminder: ReminderScheduler
+    private val reminder: ReminderScheduler,
+    private val calendar: CalendarSyncRepository
 ) : ViewModel() {
 
     val todos: StateFlow<List<TodoEntity>> = repo.observeAll()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    /** 勾选完成/取消完成：联动取消或恢复闹钟（§10） */
+    val remindersByTodo: StateFlow<Map<Long, List<TodoReminderEntity>>> = repo.observeAllReminders()
+        .map { rows -> rows.groupBy { it.todoId } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
+
+    private val _message = kotlinx.coroutines.flow.MutableStateFlow<String?>(null)
+    val message: StateFlow<String?> = _message
+
+    /** 勾选完成/取消完成：联动取消或恢复全部提醒。 */
     fun toggleDone(todo: TodoEntity) {
         viewModelScope.launch {
             val done = !todo.done
             repo.setDone(todo.id, done)
+            val reminders = repo.listReminders(todo.id)
             if (done) {
-                reminder.cancel(todo.id)
+                reminders.forEach { reminder.cancel(todo.id, it.sequence) }
             } else {
-                todo.remindAt?.takeIf { it > System.currentTimeMillis() }
-                    ?.let { reminder.schedule(todo.id, it) }
+                schedule(todo.copy(done = false), reminders)
             }
         }
     }
 
     fun delete(todo: TodoEntity) {
         viewModelScope.launch {
+            repo.listReminders(todo.id).forEach { reminder.cancel(todo.id, it.sequence) }
             repo.delete(todo.id)
-            reminder.cancel(todo.id)
+            calendar.delete(todo.calendarEventId)
         }
     }
 
-    /** 编辑截止时间/提前量：重算并重排闹钟 */
+    fun save(todo: TodoEntity, input: TodoEditInput, onDone: () -> Unit = {}) {
+        viewModelScope.launch {
+            try {
+                repo.listReminders(todo.id).forEach { reminder.cancel(todo.id, it.sequence) }
+                repo.updateDetails(
+                    id = todo.id,
+                    content = input.content,
+                    deadline = input.deadline,
+                    reminders = input.reminders,
+                    reminderCount = input.reminderCount,
+                    reminderIntervalMinutes = input.reminderIntervalMinutes,
+                    isAlarm = input.isAlarm,
+                    calendarEventId = if (input.syncCalendar) todo.calendarEventId else null
+                )
+                val updated = repo.byId(todo.id)
+                val reminders = repo.listReminders(todo.id)
+                if (updated != null) schedule(updated, reminders)
+
+                if (input.syncCalendar && updated != null) {
+                    try {
+                        val eventId = calendar.sync(updated, reminders)
+                        repo.setCalendarEventId(todo.id, eventId)
+                        _message.value = "待办已保存并同步到手机日历"
+                    } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                        throw cancelled
+                    } catch (error: Exception) {
+                        _message.value = error.message ?: "待办已保存，但日历同步失败"
+                    }
+                } else {
+                    if (todo.calendarEventId != null) calendar.delete(todo.calendarEventId)
+                    repo.setCalendarEventId(todo.id, null)
+                    _message.value = "待办已保存"
+                }
+                onDone()
+            } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                throw cancelled
+            } catch (error: Exception) {
+                _message.value = error.message ?: "保存待办失败"
+            }
+        }
+    }
+
+    /** 兼容旧调用：编辑截止时间和单条提前提醒。 */
     fun updateSchedule(id: Long, deadline: Long?, leadMinutes: Int) {
         viewModelScope.launch {
-            repo.updateSchedule(id, deadline, leadMinutes)
-            reminder.cancel(id)
-            val remindAt = deadline?.let { it - leadMinutes * 60_000L }
-            if (remindAt != null && remindAt > System.currentTimeMillis()) {
-                reminder.schedule(id, remindAt)
-            }
+            val todo = repo.byId(id) ?: return@launch
+            val trigger = deadline?.let { if (todo.isAlarm) it else it - leadMinutes * 60_000L }
+            save(
+                todo,
+                TodoEditInput(
+                    content = todo.content,
+                    deadline = deadline,
+                    reminders = trigger?.let(::listOf).orEmpty(),
+                    reminderCount = if (trigger == null) 0 else 1,
+                    reminderIntervalMinutes = todo.reminderIntervalMinutes,
+                    isAlarm = todo.isAlarm,
+                    syncCalendar = todo.calendarEventId != null
+                )
+            )
+        }
+    }
+
+    fun clearMessage() {
+        _message.value = null
+    }
+
+    fun hasCalendarPermission(): Boolean = calendar.hasWritePermission()
+
+    private fun schedule(todo: TodoEntity, reminders: List<TodoReminderEntity>) {
+        if (todo.done) return
+        val times = if (reminders.isEmpty()) {
+            todo.remindAt?.let { listOf(TodoReminderEntity(todo.id, 0, it)) }.orEmpty()
+        } else {
+            reminders
+        }
+        times.filter { it.triggerAt > System.currentTimeMillis() }.forEach { item ->
+            reminder.schedule(todo.id, item.sequence, item.triggerAt, todo.isAlarm)
         }
     }
 

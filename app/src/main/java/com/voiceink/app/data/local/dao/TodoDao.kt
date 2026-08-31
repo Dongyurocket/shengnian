@@ -41,6 +41,9 @@ interface TodoDao {
     @Query("UPDATE todos SET sourceNoteId = NULL WHERE id = :id")
     suspend fun detachFromNote(id: Long)
 
+    @Query("UPDATE todos SET sourceNoteId = NULL WHERE sourceNoteId = :noteId")
+    suspend fun detachAllFromNote(noteId: Long)
+
     @Query("SELECT * FROM todos WHERE sourceNoteId = :noteId AND done = 0 ORDER BY createdAt ASC")
     suspend fun listOpenForNote(noteId: Long): List<TodoEntity>
 
@@ -55,6 +58,28 @@ interface TodoDao {
 
     @Query("DELETE FROM todos WHERE id = :id")
     suspend fun deleteById(id: Long)
+
+    @Query("UPDATE todos SET content = :content WHERE id = :id")
+    suspend fun updateContent(id: Long, content: String)
+
+    @Query("UPDATE todos SET content = :content, deadline = :deadline, remindAt = :remindAt, remindLeadMinutes = :lead, reminderCount = :reminderCount, reminderIntervalMinutes = :reminderIntervalMinutes, isAlarm = :isAlarm, calendarEventId = :calendarEventId WHERE id = :id")
+    suspend fun updateDetails(
+        id: Long,
+        content: String,
+        deadline: Long?,
+        remindAt: Long?,
+        lead: Int,
+        reminderCount: Int,
+        reminderIntervalMinutes: Int,
+        isAlarm: Boolean,
+        calendarEventId: Long?
+    )
+
+    @Query("UPDATE todos SET calendarEventId = :calendarEventId WHERE id = :id")
+    suspend fun updateCalendarEventId(id: Long, calendarEventId: Long?)
+
+    @Query("UPDATE todos SET remindAt = :remindAt WHERE id = :id")
+    suspend fun updateRemindAt(id: Long, remindAt: Long?)
 
     @Query("UPDATE todos SET deadline = :deadline, remindLeadMinutes = :lead, remindAt = :remindAt WHERE id = :id")
     suspend fun updateSchedule(id: Long, deadline: Long?, lead: Int, remindAt: Long?)

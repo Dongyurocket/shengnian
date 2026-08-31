@@ -86,8 +86,11 @@ class OpenAiResponsesAdapter @Inject constructor(
                 })
             }
             if (isDeepSeekEndpoint(endpoint)) {
-                // DeepSeek Responses 的 none 表示关闭默认思考模式。
-                putJsonObject("reasoning") { put("effort", "none") }
+                putJsonObject("reasoning") {
+                    put("effort", if (endpoint.thinkingEnabled) endpoint.thinkingEffort.wire else "none")
+                }
+            } else if (endpoint.thinkingEnabled) {
+                putJsonObject("reasoning") { put("effort", endpoint.thinkingEffort.wire) }
             }
             putJsonObject("text") {
                 putJsonObject("format") {
@@ -101,8 +104,10 @@ class OpenAiResponsesAdapter @Inject constructor(
                     }
                 }
             }
-            put("temperature", request.temperature)
-            put("max_output_tokens", request.maxTokens)
+            if (!endpoint.thinkingEnabled) put("temperature", request.temperature)
+            val outputTokens = request.maxTokens +
+                if (endpoint.thinkingEnabled) endpoint.thinkingEffort.budgetTokens else 0
+            put("max_output_tokens", outputTokens)
         }
 
     private fun parse(resp: JsonObject): LlmResult {

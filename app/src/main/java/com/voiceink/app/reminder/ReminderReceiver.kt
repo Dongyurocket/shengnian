@@ -22,6 +22,7 @@ class ReminderReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context, intent: Intent) {
         val todoId = intent.getLongExtra(EXTRA_TODO_ID, -1L)
+        val sequence = intent.getIntExtra(EXTRA_REMINDER_SEQUENCE, 0)
         if (todoId < 0) return
         val pendingResult = goAsync()
         CoroutineScope(Dispatchers.IO).launch {
@@ -30,18 +31,27 @@ class ReminderReceiver : BroadcastReceiver() {
                     ACTION_FIRE -> {
                         val todo = todoRepository.byId(todoId)
                         if (todo != null && !todo.done) {
-                            NotificationHelper.showTodoReminder(context, todo)
+                            NotificationHelper.showTodoReminder(context, todo, sequence)
                         }
                     }
                     ACTION_COMPLETE -> {
                         todoRepository.setDone(todoId, true)
-                        scheduler.cancel(todoId)
-                        dismissNotification(context, todoId)
+                        val reminders = todoRepository.listReminders(todoId)
+                        reminders.forEach {
+                            scheduler.cancel(todoId, it.sequence)
+                            dismissNotification(context, todoId, it.sequence)
+                        }
+                        if (reminders.isEmpty()) dismissNotification(context, todoId, sequence)
                     }
                     ACTION_SNOOZE -> {
                         val triggerAt = System.currentTimeMillis() + 10 * 60_000L
-                        scheduler.schedule(todoId, triggerAt)
-                        dismissNotification(context, todoId)
+                        val todo = todoRepository.byId(todoId)
+                        if (todo != null && !todo.done) {
+                            todoRepository.updateReminderTrigger(todoId, sequence, triggerAt)
+                            scheduler.cancel(todoId, sequence)
+                            scheduler.schedule(todoId, sequence, triggerAt, todo.isAlarm)
+                        }
+                        dismissNotification(context, todoId, sequence)
                     }
                 }
             } finally {
@@ -50,8 +60,9 @@ class ReminderReceiver : BroadcastReceiver() {
         }
     }
 
-    private fun dismissNotification(context: Context, todoId: Long) {
-        context.getSystemService(NotificationManager::class.java).cancel(todoId.toInt())
+    private fun dismissNotification(context: Context, todoId: Long, sequence: Int) {
+        context.getSystemService(NotificationManager::class.java)
+            .cancel(NotificationHelper.notificationId(todoId, sequence))
     }
 
     companion object {
@@ -59,5 +70,6 @@ class ReminderReceiver : BroadcastReceiver() {
         const val ACTION_COMPLETE = "com.voiceink.app.reminder.COMPLETE"
         const val ACTION_SNOOZE = "com.voiceink.app.reminder.SNOOZE"
         const val EXTRA_TODO_ID = "todoId"
+        const val EXTRA_REMINDER_SEQUENCE = "reminderSequence"
     }
 }

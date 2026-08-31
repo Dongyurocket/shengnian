@@ -36,11 +36,16 @@ class AnthropicMessagesAdapter @Inject constructor(
         val url = apiUrl(endpoint.baseUrl, "/messages")
         val body = buildJsonObject {
             put("model", endpoint.model)
-            put("max_tokens", request.maxTokens)   // 必填
+            val thinkingBudget = if (endpoint.thinkingEnabled) endpoint.thinkingEffort.budgetTokens else 0
+            put("max_tokens", request.maxTokens + thinkingBudget)   // Anthropic 的 thinking budget 计入上限
             put("system", request.system)          // 顶层 system，不进 messages
-            put("temperature", request.temperature)
-            if (isDeepSeekEndpoint(endpoint)) {
-                // DeepSeek V4 默认思考，关闭后避免思维内容耗尽 JSON 输出额度。
+            if (!endpoint.thinkingEnabled) put("temperature", request.temperature)
+            if (endpoint.thinkingEnabled) {
+                putJsonObject("thinking") {
+                    put("type", "enabled")
+                    put("budget_tokens", thinkingBudget)
+                }
+            } else if (isDeepSeekEndpoint(endpoint)) {
                 putJsonObject("thinking") { put("type", "disabled") }
             }
             putJsonArray("messages") {
@@ -63,13 +68,15 @@ class AnthropicMessagesAdapter @Inject constructor(
                         }
                     }
                 })
-                // JSON 预填：强制模型从 '{' 后续写
-                add(buildJsonObject {
-                    put("role", "assistant")
-                    putJsonArray("content") {
-                        add(buildJsonObject { put("type", "text"); put("text", "{") })
-                    }
-                })
+                if (!endpoint.thinkingEnabled) {
+                    // 关闭思考时用 JSON 预填；Anthropic 思考模式不允许预填 assistant。
+                    add(buildJsonObject {
+                        put("role", "assistant")
+                        putJsonArray("content") {
+                            add(buildJsonObject { put("type", "text"); put("text", "{") })
+                        }
+                    })
+                }
             }
         }
         val resp = post(

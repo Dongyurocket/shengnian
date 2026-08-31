@@ -8,6 +8,7 @@ import androidx.datastore.preferences.preferencesDataStore
 import com.voiceink.app.ai.EmbeddingEndpoint
 import com.voiceink.app.ai.LlmEndpoint
 import com.voiceink.app.ai.LlmProtocol
+import com.voiceink.app.ai.ThinkingEffort
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
@@ -33,13 +34,17 @@ class SettingsRepository @Inject constructor(
     data class LlmConfig(
         val protocol: LlmProtocol = LlmProtocol.OPENAI_CHAT,
         val baseUrl: String = "",
-        val model: String = ""
+        val model: String = "",
+        val thinkingEnabled: Boolean = false,
+        val thinkingEffort: ThinkingEffort = ThinkingEffort.MEDIUM
     )
 
     private object Keys {
         val PROTOCOL = stringPreferencesKey("llm_protocol")
         val BASE_URL = stringPreferencesKey("llm_base_url")
         val MODEL = stringPreferencesKey("llm_model")
+        val THINKING_ENABLED = booleanPreferencesKey("llm_thinking_enabled")
+        val THINKING_EFFORT = stringPreferencesKey("llm_thinking_effort")
         val EMBED_ENABLED = booleanPreferencesKey("embed_enabled")
         val EMBED_BASE_URL = stringPreferencesKey("embed_base_url")
         val EMBED_MODEL = stringPreferencesKey("embed_model")
@@ -54,15 +59,28 @@ class SettingsRepository @Inject constructor(
             protocol = p[Keys.PROTOCOL]?.let { runCatching { LlmProtocol.valueOf(it) }.getOrNull() }
                 ?: LlmProtocol.OPENAI_CHAT,
             baseUrl = p[Keys.BASE_URL].orEmpty(),
-            model = p[Keys.MODEL].orEmpty()
+            model = p[Keys.MODEL].orEmpty(),
+            thinkingEnabled = p[Keys.THINKING_ENABLED] ?: false,
+            thinkingEffort = p[Keys.THINKING_EFFORT]
+                ?.let { value -> ThinkingEffort.entries.firstOrNull { it.name == value } }
+                ?: ThinkingEffort.MEDIUM
         )
     }
 
-    suspend fun saveLlm(protocol: LlmProtocol, baseUrl: String, model: String, apiKey: String) {
+    suspend fun saveLlm(
+        protocol: LlmProtocol,
+        baseUrl: String,
+        model: String,
+        apiKey: String,
+        thinkingEnabled: Boolean = false,
+        thinkingEffort: ThinkingEffort = ThinkingEffort.MEDIUM
+    ) {
         context.settingsStore.edit { p ->
             p[Keys.PROTOCOL] = protocol.name
             p[Keys.BASE_URL] = baseUrl.trim()
             p[Keys.MODEL] = model.trim()
+            p[Keys.THINKING_ENABLED] = thinkingEnabled
+            p[Keys.THINKING_EFFORT] = thinkingEffort.name
         }
         if (apiKey.isNotBlank()) llmKeyStore.save(apiKey.trim())
     }
@@ -76,7 +94,9 @@ class SettingsRepository @Inject constructor(
             baseUrl = cfg.baseUrl,
             apiKey = llmKeyStore.load().orEmpty(),
             model = cfg.model,
-            protocol = cfg.protocol
+            protocol = cfg.protocol,
+            thinkingEnabled = cfg.thinkingEnabled,
+            thinkingEffort = cfg.thinkingEffort
         )
     }
 

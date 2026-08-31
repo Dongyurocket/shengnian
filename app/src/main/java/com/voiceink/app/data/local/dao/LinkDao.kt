@@ -18,6 +18,8 @@ data class RelatedNote(
     val reason: String?
 )
 
+data class NoteLinkPair(val fromId: Long, val toId: Long)
+
 @Dao
 interface LinkDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
@@ -28,6 +30,9 @@ interface LinkDao {
 
     @Query("DELETE FROM note_links")
     suspend fun clear()
+
+    @Query("SELECT fromId, toId FROM note_links")
+    fun observeAllLinks(): Flow<List<NoteLinkPair>>
 
     @Query(
         """
@@ -49,6 +54,9 @@ interface EmbeddingDao {
 
     @Query("SELECT * FROM note_embeddings WHERE noteId = :id")
     suspend fun byId(id: Long): NoteEmbeddingEntity?
+
+    @Query("DELETE FROM note_embeddings WHERE noteId = :id")
+    suspend fun deleteForNote(id: Long)
 
     @Query("DELETE FROM note_embeddings")
     suspend fun clear()

@@ -18,7 +18,8 @@ sealed interface ParsedIntent {
         val content: String,
         val priority: Int,
         val deadline: Long?,              // epoch millis，已从 yyyy-MM-dd HH:mm 换算
-        val remindLeadMinutes: Int?
+        val remindLeadMinutes: Int?,
+        val isAlarm: Boolean = false       // 明确要求起床/闹钟时使用系统闹钟
     ) : ParsedIntent
 
     data object Unparseable : ParsedIntent

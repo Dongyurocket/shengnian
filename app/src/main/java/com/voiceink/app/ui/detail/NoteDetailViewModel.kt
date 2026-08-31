@@ -14,6 +14,7 @@ import com.voiceink.app.data.local.dao.LinkDao
 import com.voiceink.app.data.local.dao.RelatedNote
 import com.voiceink.app.data.local.dao.TagDao
 import com.voiceink.app.data.local.entity.NoteEntity
+import com.voiceink.app.data.local.entity.NoteLifecycleStatus
 import com.voiceink.app.data.local.entity.TodoEntity
 import com.voiceink.app.data.repo.NoteAttachmentRepository
 import com.voiceink.app.data.repo.NoteRepository
@@ -80,9 +81,33 @@ class NoteDetailViewModel @Inject constructor(
     private val _attachmentBusy = MutableStateFlow(false)
     val attachmentBusy: StateFlow<Boolean> = _attachmentBusy
 
+    private val _deleting = MutableStateFlow(false)
+    val deleting: StateFlow<Boolean> = _deleting
+
+    private val _deleteError = MutableStateFlow<String?>(null)
+    val deleteError: StateFlow<String?> = _deleteError
+
     /** 手动解除关联（双向删除） */
     fun unlink(otherId: Long) {
         viewModelScope.launch { linkDao.deleteBidirectional(noteId, otherId) }
+    }
+
+    fun delete(onDone: () -> Unit = {}) {
+        if (_deleting.value) return
+        viewModelScope.launch {
+            _deleting.value = true
+            _deleteError.value = null
+            try {
+                notes.delete(noteId)
+                onDone()
+            } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                throw cancelled
+            } catch (error: Exception) {
+                _deleteError.value = error.message ?: "删除失败"
+            } finally {
+                _deleting.value = false
+            }
+        }
     }
 
     fun retry() {
@@ -164,5 +189,9 @@ class NoteDetailViewModel @Inject constructor(
 
     fun updateCategory(category: String?) {
         viewModelScope.launch { notes.updateCategory(noteId, category) }
+    }
+
+    fun updateLifecycleStatus(status: NoteLifecycleStatus) {
+        viewModelScope.launch { notes.updateLifecycleStatus(noteId, status) }
     }
 }

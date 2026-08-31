@@ -11,6 +11,7 @@ import com.voiceink.app.data.local.dao.NoteDao
 import com.voiceink.app.data.local.dao.SourceDao
 import com.voiceink.app.data.local.dao.TagDao
 import com.voiceink.app.data.local.dao.TodoDao
+import com.voiceink.app.data.local.dao.TodoReminderDao
 import com.voiceink.app.data.local.entity.CategoryEntity
 import com.voiceink.app.data.local.entity.NoteAttachmentEntity
 import com.voiceink.app.data.local.entity.NoteDiagramEntity
@@ -21,6 +22,7 @@ import com.voiceink.app.data.local.entity.NoteSourceEntity
 import com.voiceink.app.data.local.entity.NoteTagCrossRef
 import com.voiceink.app.data.local.entity.TagEntity
 import com.voiceink.app.data.local.entity.TodoEntity
+import com.voiceink.app.data.local.entity.TodoReminderEntity
 
 @Database(
     entities = [
@@ -33,14 +35,16 @@ import com.voiceink.app.data.local.entity.TodoEntity
         NoteEmbeddingEntity::class,
         NoteAttachmentEntity::class,
         NoteSourceEntity::class,
-        NoteDiagramEntity::class
+        NoteDiagramEntity::class,
+        TodoReminderEntity::class
     ],
-    version = 4,
+    version = 5,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun noteDao(): NoteDao
     abstract fun todoDao(): TodoDao
+    abstract fun todoReminderDao(): TodoReminderDao
     abstract fun tagDao(): TagDao
     abstract fun categoryDao(): CategoryDao
     abstract fun linkDao(): LinkDao

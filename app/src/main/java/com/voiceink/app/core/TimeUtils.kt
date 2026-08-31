@@ -39,23 +39,40 @@ object TimeUtils {
 
     /** 截止时间的口语化标签：今天 18:00 / 明天 09:30 / 周三 14:00 / 9月12日 10:00 */
     fun dueLabel(ts: Long, now: Long = System.currentTimeMillis()): String {
-        val day = dayLabel(ts, now)
         val time = timeOfDay(ts)
-        return when (day) {
-            "今天" -> "今天 $time"
-            "昨天" -> "已过期"
-            else -> {
+        val dayDiff = calendarDayDifference(now, ts)
+        return when {
+            dayDiff == 0 -> "今天 $time"
+            dayDiff == 1 -> "明天 $time"
+            dayDiff in 2..6 -> {
                 val cal = Calendar.getInstance().apply { timeInMillis = ts }
-                val nowCal = Calendar.getInstance().apply { timeInMillis = now }
-                val diffDays = ((ts - now) / 86_400_000L).toInt()
-                if (diffDays in 1..6) {
-                    val week = arrayOf("周日", "周一", "周二", "周三", "周四", "周五", "周六")
-                    "${week[cal.get(Calendar.DAY_OF_WEEK) - 1]} $time"
-                } else {
-                    "${cal.get(Calendar.MONTH) + 1}月${cal.get(Calendar.DAY_OF_MONTH)}日 $time"
-                }
+                val week = arrayOf("周日", "周一", "周二", "周三", "周四", "周五", "周六")
+                "${week[cal.get(Calendar.DAY_OF_WEEK) - 1]} $time"
             }
+            dayDiff > 6 -> {
+                val cal = Calendar.getInstance().apply { timeInMillis = ts }
+                "${cal.get(Calendar.MONTH) + 1}月${cal.get(Calendar.DAY_OF_MONTH)}日 $time"
+            }
+            else -> "已过期"
         }
+    }
+
+    private fun calendarDayDifference(from: Long, to: Long): Int {
+        val fromStart = Calendar.getInstance().apply {
+            timeInMillis = from
+            set(Calendar.HOUR_OF_DAY, 0)
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+        }
+        val toStart = Calendar.getInstance().apply {
+            timeInMillis = to
+            set(Calendar.HOUR_OF_DAY, 0)
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+        }
+        return ((toStart.timeInMillis - fromStart.timeInMillis) / 86_400_000L).toInt()
     }
 
     /** 笔记流分组标签：今天 / 昨天 / 更早 */
