@@ -1,0 +1,947 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>声念 — AI 灵感笔记 + 智能待办 · 移动端 UI</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;500;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#FAFAF7; --paper-2:#F5F4F0; --surface:#FFFFFF;
+  --ink:#1A1A1A; --ink-2:#4A4844; --muted:#8C8A84; --faint:#B2B0A9;
+  --line:#EAE8E2; --line-2:#F2F0EB;
+  --accent:#6B5CE7;
+  --accent-12:rgba(107,92,231,.12); --accent-06:rgba(107,92,231,.06);
+  --stage:#ECEBE7;
+  --r-lg:22px; --r-card:18px; --r-md:14px; --r-sm:10px; --r-chip:7px; --r-pill:999px;
+  --sh-card:0 1px 2px rgba(26,26,26,.030), 0 6px 18px -8px rgba(26,26,26,.065);
+  --sh-raise:0 1px 2px rgba(26,26,26,.035), 0 10px 26px -12px rgba(26,26,26,.10);
+  --sh-fab:0 6px 16px -3px rgba(107,92,231,.42), 0 2px 5px rgba(26,26,26,.10);
+  --sh-board:0 2px 5px rgba(26,26,26,.05), 0 34px 64px -26px rgba(26,26,26,.26);
+  --serif:"Noto Serif SC",Georgia,"Songti SC","Source Han Serif SC",serif;
+  --sans:"Inter","PingFang SC","Hiragino Sans GB","Microsoft YaHei",system-ui,-apple-system,sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{-webkit-text-size-adjust:100%}
+body{background:var(--stage);color:var(--ink);font-family:var(--sans);
+  font-feature-settings:"tnum" 0;-webkit-font-smoothing:antialiased;padding:0 0 88px}
+.num{font-variant-numeric:tabular-nums}
+svg{display:block}
+.ic{width:22px;height:22px}
+
+/* ============ 设计规范区 ============ */
+.spec{max-width:1250px;margin:0 auto;padding:64px 28px 8px}
+.mast{display:flex;align-items:flex-end;justify-content:space-between;gap:32px;flex-wrap:wrap;
+  padding-bottom:26px;border-bottom:1px solid rgba(26,26,26,.10)}
+.mast-l{display:flex;align-items:baseline;gap:20px;flex-wrap:wrap}
+.wordmark{font-family:var(--serif);font-weight:600;font-size:46px;letter-spacing:.10em;line-height:1}
+.slogan{font-family:var(--serif);font-size:17px;color:var(--ink-2);letter-spacing:.14em}
+.mast-r{font-size:12.5px;color:var(--muted);line-height:1.85;max-width:430px;text-align:right}
+.mast-r b{color:var(--ink-2);font-weight:500}
+.specgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(272px,1fr));gap:18px;margin-top:26px}
+.card{background:var(--surface);border:1px solid rgba(26,26,26,.055);border-radius:var(--r-card);
+  padding:20px 20px 22px;box-shadow:var(--sh-card)}
+.card h3{font-family:var(--sans);font-size:10.5px;font-weight:600;letter-spacing:.16em;
+  color:var(--muted);text-transform:uppercase;margin-bottom:16px}
+.sw{display:flex;align-items:center;gap:11px;padding:5px 0}
+.sw-chip{width:26px;height:26px;border-radius:8px;flex:none;border:1px solid rgba(26,26,26,.09)}
+.sw b{font-size:12.5px;font-weight:500;min-width:52px}
+.sw code{font-family:var(--sans);font-size:11px;color:var(--muted);letter-spacing:.02em;
+  font-variant-numeric:tabular-nums}
+.sw em{font-style:normal;font-size:10.5px;color:var(--faint);margin-left:auto;text-align:right}
+.ty{padding:7px 0;border-bottom:1px dashed var(--line);display:flex;align-items:baseline;gap:14px}
+.ty:last-child{border:0}
+.ty-s{font-family:var(--serif);font-weight:600;font-size:22px;line-height:1.3}
+.ty-b{font-size:14px;line-height:1.4}
+.ty-m{font-size:12px;color:var(--muted);margin-left:auto;text-align:right;line-height:1.5;flex:none}
+.rr{display:flex;align-items:flex-end;gap:12px;margin-bottom:18px}
+.rr i{background:var(--paper-2);border:1px solid var(--line);width:46px;height:46px;display:block}
+.rr i:nth-child(1){border-radius:7px}.rr i:nth-child(2){border-radius:10px}
+.rr i:nth-child(3){border-radius:14px}.rr i:nth-child(4){border-radius:18px}
+.rr i:nth-child(5){border-radius:22px}
+.rr-l{font-size:10px;color:var(--faint);letter-spacing:.04em;margin-left:auto}
+.shrow{display:flex;gap:14px}
+.shbox{flex:1;height:52px;border-radius:var(--r-card);background:#fff;border:1px solid rgba(26,26,26,.05);
+  box-shadow:var(--sh-card);display:flex;align-items:center;justify-content:center;
+  font-size:10.5px;color:var(--muted)}
+.shbox.fab{background:var(--accent);color:#fff;box-shadow:var(--sh-fab);border-color:transparent}
+.pr{font-size:12.5px;color:var(--ink-2);line-height:1.9;padding-left:15px;position:relative}
+.pr+.pr{margin-top:10px}
+.pr::before{content:"";position:absolute;left:0;top:9px;width:5px;height:5px;border-radius:50%;
+  background:var(--accent);opacity:.55}
+.pr b{font-weight:600;color:var(--ink)}
+.pr.no::before{background:var(--ink);opacity:.28}
+
+/* ============ 画板展示台 ============ */
+.stripwrap{max-width:1250px;margin:0 auto;padding:46px 28px 0}
+.striphead{display:flex;align-items:baseline;gap:14px;margin-bottom:30px}
+.striphead h2{font-family:var(--serif);font-size:19px;font-weight:600;letter-spacing:.04em}
+.striphead span{font-size:11.5px;color:var(--muted)}
+.strip{display:flex;flex-wrap:wrap;justify-content:center;gap:54px 40px}
+.board{width:390px;flex:none}
+.cap{margin-bottom:15px;padding-left:2px}
+.cap-h{display:flex;align-items:baseline;gap:9px}
+.cap-n{font-size:11px;font-weight:600;color:var(--accent);letter-spacing:.1em;
+  font-variant-numeric:tabular-nums}
+.cap-t{font-family:var(--serif);font-size:15.5px;font-weight:600;letter-spacing:.03em}
+.cap-d{font-size:11.5px;color:var(--muted);line-height:1.6;margin-top:4px}
+
+/* ============ 手机外壳 ============ */
+.phone{width:390px;height:844px;background:var(--paper);border-radius:44px;position:relative;
+  overflow:hidden;box-shadow:var(--sh-board);border:1px solid rgba(26,26,26,.07);
+  display:flex;flex-direction:column}
+.phone::after{content:"";position:absolute;inset:0;border-radius:44px;pointer-events:none;
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.55)}
+
+/* 状态栏 */
+.sb{height:54px;flex:none;display:flex;align-items:flex-end;justify-content:space-between;
+  padding:0 30px 9px;position:relative;z-index:6}
+.sb-t{font-size:15px;font-weight:600;letter-spacing:.01em;font-variant-numeric:tabular-nums}
+.sb-r{display:flex;align-items:center;gap:6px}
+.island{position:absolute;top:11px;left:50%;transform:translateX(-50%);width:98px;height:29px;
+  background:#0C0C0C;border-radius:16px}
+.island::after{content:"";position:absolute;right:8px;top:50%;transform:translateY(-50%);
+  width:9px;height:9px;border-radius:50%;background:#17171B;
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.10)}
+
+/* Home indicator */
+.hi{height:34px;flex:none;display:flex;align-items:center;justify-content:center;position:relative;z-index:6}
+.hi i{width:140px;height:5px;border-radius:3px;background:rgba(26,26,26,.24)}
+
+/* 导航条 */
+.nav{height:50px;flex:none;display:flex;align-items:center;justify-content:space-between;
+  padding:0 18px;position:relative;z-index:5}
+.nav-btn{font-size:15.5px;color:var(--muted);letter-spacing:.02em;background:none;border:0;
+  font-family:var(--sans);cursor:pointer;padding:6px 2px}
+.nav-btn.pri{color:var(--accent);font-weight:600}
+.nav-ic{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;color:var(--ink-2)}
+.nav-r{display:flex;gap:4px}
+
+/* 内容滚动区 */
+.body{flex:1;overflow:hidden;position:relative;padding:0 18px}
+.fade{position:absolute;left:0;right:0;bottom:0;height:104px;pointer-events:none;z-index:4;
+  background:linear-gradient(to top,var(--paper) 34%,rgba(250,250,247,.86) 62%,rgba(250,250,247,0))}
+
+/* Tab 栏 + FAB */
+.tabbar{height:66px;flex:none;display:flex;align-items:flex-start;padding-top:9px;
+  border-top:1px solid var(--line);background:rgba(250,250,247,.94);
+  backdrop-filter:blur(12px);position:relative;z-index:6}
+.tab{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;color:var(--faint)}
+.tab.on{color:var(--ink)}
+.tab span{font-size:10px;letter-spacing:.06em;font-weight:500}
+.tab .ic{width:23px;height:23px}
+.fab{position:absolute;left:50%;bottom:100px;transform:translateX(-50%);width:62px;height:62px;
+  border-radius:50%;background:var(--accent);color:#fff;display:grid;place-items:center;z-index:7;
+  box-shadow:var(--sh-fab);border:0;cursor:pointer;
+  transition:transform .16s ease,box-shadow .16s ease}
+.fab::before{content:"";position:absolute;inset:-7px;border-radius:50%;
+  border:1px solid rgba(107,92,231,.16)}
+.fab:active{transform:translateX(-50%) scale(.94)}
+.fab .ic{width:25px;height:25px}
+.fab-cap{position:absolute;left:50%;bottom:82px;transform:translateX(-50%);z-index:7;
+  font-size:9.5px;color:var(--accent);letter-spacing:.1em;white-space:nowrap;opacity:.9}
+
+/* ============ 共用小组件 ============ */
+.chip{display:inline-flex;align-items:center;gap:4px;height:23px;padding:0 9px;
+  border-radius:var(--r-chip);background:var(--paper-2);color:var(--muted);
+  font-size:10.5px;letter-spacing:.03em;white-space:nowrap}
+.chip.ac{background:var(--accent-12);color:var(--accent)}
+.chip.ink{background:var(--ink);color:#fff}
+.chip.line{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.seclab{font-size:10.5px;font-weight:600;letter-spacing:.16em;color:var(--faint);
+  text-transform:uppercase;display:flex;align-items:baseline;gap:8px}
+.seclab em{font-style:normal;letter-spacing:.03em;font-weight:400;text-transform:none;
+  color:var(--faint);font-size:10.5px}
+.sheet{background:var(--surface);border-radius:var(--r-card);border:1px solid rgba(26,26,26,.05);
+  box-shadow:var(--sh-card)}
+
+/* ============ 01 首页 ============ */
+.brand{display:flex;align-items:flex-start;justify-content:space-between;padding:6px 0 16px}
+.brand-n{font-family:var(--serif);font-size:27px;font-weight:600;letter-spacing:.14em;line-height:1.1}
+.brand-s{font-family:var(--serif);font-size:11px;color:var(--faint);letter-spacing:.18em;margin-top:6px}
+.ava{width:36px;height:36px;border-radius:50%;background:var(--accent-06);
+  border:1px solid var(--accent-12);display:grid;place-items:center;
+  font-family:var(--serif);font-size:14px;color:var(--accent);font-weight:600}
+.search{height:40px;border-radius:var(--r-md);background:var(--paper-2);
+  border:1px solid var(--line);display:flex;align-items:center;gap:8px;padding:0 13px;
+  color:var(--faint);font-size:13.5px}
+.search .ic{width:16px;height:16px;color:var(--faint)}
+.filters{display:flex;gap:7px;padding:14px 0 16px;overflow:hidden}
+.feed{display:flex;flex-direction:column;gap:11px}
+.feed .seclab{margin:5px 0 -1px}
+.note{background:var(--surface);border-radius:var(--r-card);border:1px solid rgba(26,26,26,.05);
+  box-shadow:var(--sh-card);padding:15px 16px 13px}
+.note-t{font-family:var(--serif);font-size:16px;font-weight:600;line-height:1.45;letter-spacing:.01em}
+.note-s{font-size:12.5px;color:var(--muted);line-height:1.72;margin-top:7px;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.note-m{display:flex;align-items:center;gap:8px;margin-top:12px;padding-top:11px;
+  border-top:1px solid var(--line-2)}
+.note-time{font-size:10.5px;color:var(--faint);letter-spacing:.04em;font-variant-numeric:tabular-nums}
+.note-td{margin-left:auto;display:flex;align-items:center;gap:4px;font-size:10.5px;color:var(--accent);
+  font-variant-numeric:tabular-nums}
+.note-td .ic{width:12px;height:12px}
+
+/* ============ 02 快速记录 ============ */
+.cap-meta{font-size:10.5px;color:var(--faint);letter-spacing:.05em;padding:2px 0 14px;
+  font-variant-numeric:tabular-nums}
+.editor{font-family:var(--serif);font-size:18.5px;line-height:1.92;color:var(--ink);
+  letter-spacing:.015em;position:relative;min-height:132px;flex:1}
+.editor .ph{color:var(--faint);font-weight:400}
+.caret{display:inline-block;width:1.6px;height:20px;background:var(--accent);
+  vertical-align:-3px;margin-left:1.5px;animation:blink 1.05s step-end infinite}
+@keyframes blink{0%,49%{opacity:1}50%,100%{opacity:0}}
+.aibar{display:flex;align-items:center;gap:7px;margin-top:22px;padding:9px 12px;
+  border-radius:var(--r-md);background:var(--accent-06);border:1px solid var(--accent-12);
+  font-size:11.5px;color:var(--accent);letter-spacing:.02em}
+.aibar .ic{width:13px;height:13px;flex:none}
+
+/* 键盘引导 */
+.guide{position:relative;height:56px;flex:none}
+.guide-pill{position:absolute;left:50%;top:0;transform:translateX(-50%);
+  display:inline-flex;align-items:center;height:26px;padding:0 12px;border-radius:var(--r-pill);
+  background:var(--accent);color:#fff;font-size:11px;letter-spacing:.04em;white-space:nowrap;
+  box-shadow:0 4px 12px -4px rgba(107,92,231,.5)}
+.guide-arrow{position:absolute;left:0;top:24px;width:390px;height:32px;color:var(--accent);
+  opacity:.5}
+
+/* iOS 键盘 */
+.kb{flex:none;background:#D8D6CF;padding:9px 3px 0;position:relative;z-index:5}
+.kbrow{display:flex;gap:6px;padding:0 3px;margin-bottom:11px;justify-content:center}
+.key{height:42px;flex:1;background:#fff;border-radius:5px;display:grid;place-items:center;
+  font-family:var(--sans);font-size:21px;font-weight:400;color:#1A1A1A;
+  box-shadow:0 1px 0 rgba(26,26,26,.28);letter-spacing:0}
+.key.fn{background:#ADABA4;font-size:15px;color:#1A1A1A;flex:none;width:42px}
+.key.w38{flex:none;width:38px}
+.key.w44{flex:none;width:44px}
+.key.w78{flex:none;width:78px;font-size:14px;background:#ADABA4}
+.key.sp{flex:1;font-size:13px;color:var(--muted);letter-spacing:.2em}
+.key .ic{width:19px;height:19px;color:#1A1A1A}
+.key.mic{position:relative;background:#fff;flex:none;width:38px;z-index:2}
+.key.mic .ic{width:17px;height:17px;color:var(--accent)}
+.key.mic::before{content:"";position:absolute;inset:-1px;border-radius:6px;
+  box-shadow:0 0 0 1.5px var(--accent);opacity:.9}
+.key.mic::after{content:"";position:absolute;inset:-1px;border-radius:6px;z-index:-1;
+  box-shadow:0 0 0 2px rgba(107,92,231,.55),0 0 14px 5px rgba(107,92,231,.42);
+  animation:breathe 2.7s ease-in-out infinite}
+@keyframes breathe{
+  0%,100%{opacity:.28;transform:scale(1)}
+  50%{opacity:1;transform:scale(1.09)}
+}
+@media (prefers-reduced-motion:reduce){
+  .key.mic::after{animation:none;opacity:.7}
+  .caret{animation:none}
+}
+
+/* ============ 03 笔记详情 ============ */
+.d-meta{font-size:10.5px;color:var(--faint);letter-spacing:.05em;padding:4px 0 9px;
+  display:flex;align-items:center;gap:8px;font-variant-numeric:tabular-nums}
+.d-title{font-family:var(--serif);font-size:23px;font-weight:600;line-height:1.44;letter-spacing:.01em}
+.d-tags{display:flex;gap:6px;margin-top:12px}
+.d-sum{margin-top:17px;padding:14px 15px;border-radius:var(--r-md);background:var(--accent-06);
+  border:1px solid var(--accent-12)}
+.d-sum-l{display:flex;align-items:center;gap:6px;font-size:10px;font-weight:600;letter-spacing:.14em;
+  color:var(--accent);text-transform:uppercase}
+.d-sum-l .ic{width:12px;height:12px}
+.d-sum p{font-size:12.5px;line-height:1.85;color:var(--ink-2);margin-top:9px}
+.d-body{margin-top:17px}
+.d-sec+.d-sec{margin-top:13px}
+.d-h{font-family:var(--serif);font-size:15px;font-weight:600;line-height:1.5;
+  display:flex;align-items:baseline;gap:8px}
+.d-h b{font-family:var(--sans);font-size:10px;font-weight:600;color:var(--faint);
+  letter-spacing:.06em;flex:none;font-variant-numeric:tabular-nums}
+.d-p{font-size:13px;line-height:1.85;color:var(--ink-2);margin-top:6px}
+.d-td{margin-top:18px;border-top:1px solid var(--line);padding-top:13px}
+.d-td-h{display:flex;align-items:baseline;justify-content:space-between}
+.d-row{display:flex;align-items:flex-start;gap:10px;padding:11px 0;border-bottom:1px solid var(--line-2)}
+.d-row:last-child{border:0;padding-bottom:2px}
+.d-row-t{font-size:12.5px;line-height:1.6;color:var(--ink);flex:1;padding-top:1px}
+.d-add{flex:none;height:24px;padding:0 10px;border-radius:var(--r-pill);background:transparent;
+  border:1px solid var(--accent);color:var(--accent);font-family:var(--sans);font-size:10.5px;
+  letter-spacing:.04em;cursor:pointer;display:inline-flex;align-items:center;gap:3px;
+  transition:background .15s,border-color .15s,color .15s}
+.d-add .ic{width:11px;height:11px}
+.d-add.on{border-color:var(--line);color:var(--faint);background:var(--paper-2)}
+.d-dot{width:5px;height:5px;border-radius:50%;background:var(--accent);flex:none;margin-top:8px;opacity:.5}
+.d-row.on .d-row-t{color:var(--muted)}
+.d-row.on .d-dot{background:var(--faint);opacity:.5}
+
+/* ============ 04 智能待办 ============ */
+.h1row{display:flex;align-items:flex-end;justify-content:space-between;padding:4px 0 0}
+.h1{font-family:var(--serif);font-size:26px;font-weight:600;letter-spacing:.06em;line-height:1.1}
+.prog{margin-top:15px}
+.prog-t{display:flex;align-items:baseline;justify-content:space-between;font-size:11px;color:var(--muted);
+  letter-spacing:.03em}
+.prog-t b{font-weight:500;color:var(--ink-2);font-variant-numeric:tabular-nums}
+.prog-bar{height:3px;border-radius:2px;background:var(--line);margin-top:8px;overflow:hidden}
+.prog-bar i{display:block;height:100%;width:50%;border-radius:2px;background:var(--accent);opacity:.8}
+.grp{margin-top:22px}
+.grp .seclab{margin-bottom:9px}
+.t-row{display:flex;align-items:flex-start;gap:11px;padding:12px 15px;border-bottom:1px solid var(--line-2)}
+.t-row:last-child{border:0}
+.box{width:19px;height:19px;border-radius:50%;border:1.5px solid var(--faint);flex:none;margin-top:1px;
+  display:grid;place-items:center;cursor:pointer;background:transparent;padding:0;
+  transition:background .15s,border-color .15s}
+.box .ic{width:11px;height:11px;color:#fff;opacity:0;transition:opacity .15s}
+.t-row.on .box{background:var(--accent);border-color:var(--accent)}
+.t-row.on .box .ic{opacity:1}
+.t-main{flex:1;min-width:0}
+.t-t{font-size:13.5px;line-height:1.5;color:var(--ink);display:flex;align-items:baseline;gap:7px}
+.t-t span{flex:1}
+.t-row.on .t-t span{color:var(--faint);text-decoration:line-through;text-decoration-color:var(--line)}
+.t-sub{display:flex;align-items:center;gap:9px;margin-top:6px}
+.t-src{font-size:10.5px;color:var(--faint);letter-spacing:.02em;display:inline-flex;align-items:center;
+  gap:4px;border-bottom:1px solid var(--line);padding-bottom:1px}
+.t-src .ic{width:10px;height:10px}
+.t-due{font-size:10.5px;color:var(--muted);letter-spacing:.03em;font-variant-numeric:tabular-nums}
+.pri{flex:none;height:18px;padding:0 7px;border-radius:5px;font-size:9.5px;letter-spacing:.06em;
+  display:inline-flex;align-items:center;font-weight:500}
+.pri.hi{background:rgba(107,92,231,.12);color:var(--accent)}
+.pri.mid{background:var(--paper-2);color:var(--muted)}
+.t-row.on .pri{display:none}
+.doneline{font-size:10.5px;color:var(--faint);letter-spacing:.08em;padding:10px 15px 2px}
+
+/* ============ 05 洞察 ============ */
+.i-head{display:flex;align-items:flex-end;justify-content:space-between;padding:4px 0 0}
+.i-sub{font-size:11px;color:var(--faint);letter-spacing:.05em;margin-top:6px;
+  font-variant-numeric:tabular-nums}
+.tiles{display:flex;gap:9px;margin-top:18px}
+.tile{flex:1;background:var(--surface);border-radius:var(--r-md);border:1px solid rgba(26,26,26,.05);
+  box-shadow:var(--sh-card);padding:13px 12px 12px;min-width:0}
+.tile-l{font-size:9.5px;font-weight:500;letter-spacing:.1em;color:var(--faint);white-space:nowrap}
+.tile-v{font-size:26px;font-weight:300;line-height:1.1;margin-top:8px;letter-spacing:-.01em;
+  font-variant-numeric:tabular-nums;display:flex;align-items:baseline;gap:2px}
+.tile-v i{font-style:normal;font-size:11px;font-weight:400;color:var(--muted)}
+.tile-f{font-size:10px;color:var(--faint);margin-top:6px;letter-spacing:.02em;
+  font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tile-f.ac{color:var(--accent)}
+.mod{margin-top:12px;padding:16px 16px 14px}
+.mod-h{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
+.mod-t{font-family:var(--serif);font-size:14px;font-weight:600;letter-spacing:.03em}
+.mod-n{font-size:10.5px;color:var(--faint);letter-spacing:.03em;font-variant-numeric:tabular-nums}
+.hrs{display:flex;align-items:flex-end;gap:5px;height:88px;margin-top:16px}
+.hr{flex:1;border-radius:2px 2px 1px 1px;background:rgba(26,26,26,.10);min-height:3px}
+.hr.eve{background:rgba(26,26,26,.17)}
+.hr.pk{background:var(--accent)}
+.hax{display:flex;justify-content:space-between;margin-top:9px;font-size:9.5px;color:var(--faint);
+  letter-spacing:.05em;font-variant-numeric:tabular-nums}
+.cloud{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px 11px;margin-top:15px}
+.kw{line-height:1.15;letter-spacing:.02em}
+.kw.s1{font-family:var(--serif);font-size:25px;font-weight:600;color:var(--accent)}
+.kw.s2{font-family:var(--serif);font-size:21px;font-weight:600;color:var(--ink)}
+.kw.s3{font-family:var(--serif);font-size:18px;font-weight:500;color:var(--ink-2)}
+.kw.s4{font-size:14.5px;font-weight:500;color:var(--muted)}
+.kw.s5{font-size:12.5px;font-weight:400;color:var(--faint)}
+.streak{display:flex;align-items:center;gap:4px;margin-top:13px}
+.sd{width:11px;height:11px;border-radius:50%;background:rgba(26,26,26,.13);flex:none}
+.sd.on{background:rgba(26,26,26,.34)}
+.sd.today{background:var(--accent)}
+.streak-n{margin-left:auto;font-size:10px;color:var(--faint);letter-spacing:.03em;
+  font-variant-numeric:tabular-nums}
+
+@media (max-width:900px){
+  .spec{padding:44px 20px 8px}
+  .stripwrap{padding:36px 20px 0}
+  .wordmark{font-size:36px}
+  .mast-r{text-align:left}
+  .strip{gap:44px 26px}
+}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+  <symbol id="i-nib" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
+    stroke-linecap="round" stroke-linejoin="round">
+    <path d="M6.4 3.6h11.2l-2.1 10.1L12 20.6l-3.5-6.9z"/><circle cx="12" cy="10.6" r="1.5" fill="currentColor" stroke="none"/>
+    <path d="M12 12.4v6"/></symbol>
+  <symbol id="i-home" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"
+    stroke-linecap="round" stroke-linejoin="round">
+    <path d="M4 10.4 12 4l8 6.4V19a1.4 1.4 0 0 1-1.4 1.4H5.4A1.4 1.4 0 0 1 4 19z"/>
+    <path d="M9.6 20.4v-6.2h4.8v6.2"/></symbol>
+  <symbol id="i-check-sq" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"
+    stroke-linecap="round" stroke-linejoin="round">
+    <rect x="3.6" y="3.6" width="16.8" height="16.8" rx="4.6"/><path d="M8.2 12.2l2.8 2.8 5-5.4"/></symbol>
+  <symbol id="i-spark-tab" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"
+    stroke-linecap="round" stroke-linejoin="round">
+    <path d="M4 20V9.4M9.4 20V4.6M14.8 20v-7.4M20.2 20V7"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"
+    stroke-linecap="round"><circle cx="10.6" cy="10.6" r="6.4"/><path d="M15.4 15.4 20.4 20.4"/></symbol>
+  <symbol id="i-spark" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M12 2.4l1.8 6 6 1.8-6 1.8-1.8 6-1.8-6-6-1.8 6-1.8z"/>
+    <path d="M19.4 15.6l.85 2.55 2.55.85-2.55.85-.85 2.55-.85-2.55L16 19.0l2.55-.85z" opacity=".55"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"
+    stroke-linecap="round" stroke-linejoin="round"><path d="M4.6 12.6l4.6 4.6L19.4 6.8"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
+    stroke-linecap="round"><path d="M12 5.4v13.2M5.4 12h13.2"/></symbol>
+  <symbol id="i-chev-l" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"
+    stroke-linecap="round" stroke-linejoin="round"><path d="M14.8 4.8 7.6 12l7.2 7.2"/></symbol>
+  <symbol id="i-mark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"
+    stroke-linecap="round" stroke-linejoin="round"><path d="M6.4 3.8h11.2v16.4L12 15.6l-5.6 4.6z"/></symbol>
+  <symbol id="i-dots" viewBox="0 0 24 24" fill="currentColor">
+    <circle cx="5.6" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="18.4" cy="12" r="1.6"/></symbol>
+  <symbol id="i-note-link" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"
+    stroke-linecap="round" stroke-linejoin="round">
+    <path d="M5.6 4.4h9.2l4 4v11.2H5.6z"/><path d="M9 12.4h6M9 16h4"/></symbol>
+  <symbol id="i-sort" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
+    stroke-linecap="round"><path d="M4.6 7h14.8M7 12h10M10 17h4"/></symbol>
+  <symbol id="i-mic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+    stroke-linecap="round" stroke-linejoin="round">
+    <rect x="9.2" y="2.8" width="5.6" height="10.4" rx="2.8"/>
+    <path d="M5.6 11.6a6.4 6.4 0 0 0 12.8 0M12 18v3.2"/></symbol>
+  <symbol id="i-globe" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+    <circle cx="12" cy="12" r="8.4"/><path d="M3.6 12h16.8M12 3.6a13 13 0 0 1 0 16.8 13 13 0 0 1 0-16.8"/></symbol>
+  <symbol id="i-shift" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
+    stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.6 4.4 11.4h4v8.2h7.2v-8.2h4z"/></symbol>
+  <symbol id="i-del" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
+    stroke-linecap="round" stroke-linejoin="round">
+    <path d="M9 5.2h10.4v13.6H9L3.4 12z"/><path d="M12.6 9.6l4.4 4.8M17 9.6l-4.4 4.8"/></symbol>
+  <symbol id="i-ret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
+    stroke-linecap="round" stroke-linejoin="round"><path d="M20 5.6v7.2H5.2"/><path d="M9.6 8.4 5.2 12.8l4.4 4.4"/></symbol>
+</defs></svg>
+
+<section class="spec" data-od-id="design-spec">
+  <div class="mast" data-od-id="spec-masthead">
+    <div class="mast-l">
+      <div class="wordmark">声念</div>
+      <div class="slogan">声落成章，念起成行</div>
+    </div>
+    <div class="mast-r">
+      AI 灵感笔记 + 智能待办 · iOS 移动端界面规范<br>
+      <b>无录音模块</b>：语音输入完全交由系统输入法听写完成，界面中不出现录音按钮、声波与时长。
+    </div>
+  </div>
+
+  <div class="specgrid">
+    <div class="card" data-od-id="spec-palette">
+      <h3>色板 Palette</h3>
+      <div class="sw"><i class="sw-chip" style="background:#FAFAF7"></i><b>纸白</b><code>#FAFAF7</code><em>主背景</em></div>
+      <div class="sw"><i class="sw-chip" style="background:#F5F4F0"></i><b>米灰</b><code>#F5F4F0</code><em>次级面 / 输入框</em></div>
+      <div class="sw"><i class="sw-chip" style="background:#FFFFFF"></i><b>卡面</b><code>#FFFFFF</code><em>卡片</em></div>
+      <div class="sw"><i class="sw-chip" style="background:#1A1A1A"></i><b>墨</b><code>#1A1A1A</code><em>主文字</em></div>
+      <div class="sw"><i class="sw-chip" style="background:#8C8A84"></i><b>灰</b><code>#8C8A84</code><em>辅助文字</em></div>
+      <div class="sw"><i class="sw-chip" style="background:#EAE8E2"></i><b>分隔</b><code>#EAE8E2</code><em>1px 极淡线</em></div>
+      <div class="sw"><i class="sw-chip" style="background:#6B5CE7"></i><b>紫罗兰</b><code>#6B5CE7</code><em>点缀 · 每屏 ≤2 处</em></div>
+    </div>
+
+    <div class="card" data-od-id="spec-type">
+      <h3>字体 Typography</h3>
+      <div class="ty"><span class="ty-s">声落成章</span><span class="ty-m">Noto Serif SC 600<br>标题 / 编辑器正文</span></div>
+      <div class="ty"><span class="ty-b">AI 已整理 · 提炼 3 条待办</span><span class="ty-m">Inter + PingFang SC<br>界面 / 正文</span></div>
+      <div class="ty"><span class="ty-b num" style="font-size:22px;font-weight:300">23 · 68%</span><span class="ty-m">Inter 300 tnum<br>数据与时间</span></div>
+      <div class="ty"><span class="ty-m" style="margin:0;text-align:left">26 / 23 / 18.5 / 16 / 13.5 / 12.5 / 10.5 px　行高 1.45–1.92</span></div>
+    </div>
+
+    <div class="card" data-od-id="spec-shape">
+      <h3>圆角与投影 Shape</h3>
+      <div class="rr"><i></i><i></i><i></i><i></i><i></i><span class="rr-l">7 / 10 / 14 / 18 / 22px</span></div>
+      <div class="shrow">
+        <div class="shbox">卡片 y1 + y6 blur18</div>
+        <div class="shbox fab">FAB 紫光晕</div>
+      </div>
+      <div class="rr-l" style="margin:14px 0 0;text-align:left">卡片 18px · 输入 14px · chip 7px · 手机 44px</div>
+    </div>
+
+    <div class="card" data-od-id="spec-principles">
+      <h3>三条原则 Principles</h3>
+      <p class="pr no"><b>不画录音。</b>没有录音键、声波、时长、麦克风大图标。语音只存在于键盘上被强调的听写键。</p>
+      <p class="pr"><b>单一点缀色。</b>紫罗兰只用于 FAB、听写键光晕与关键状态，其余交给墨与灰阶。</p>
+      <p class="pr"><b>留白即节奏。</b>衬线承担「写」，无衬线承担「用」；卡片之间留够呼吸。</p>
+    </div>
+  </div>
+</section>
+
+<section class="stripwrap" data-od-id="artboards">
+  <div class="striphead">
+    <h2>5 屏界面</h2>
+    <span>iOS · 390 × 844pt · 纯 CSS / SVG 绘制</span>
+  </div>
+  <div class="strip">
+
+  <!-- ============ 01 首页 ============ -->
+  <figure class="board" data-od-id="board-home">
+    <figcaption class="cap">
+      <div class="cap-h"><span class="cap-n">01</span><span class="cap-t">首页 · 灵感笔记流</span></div>
+      <div class="cap-d">AI 整理后的标题与摘要，底部中央一颗记录灵感的主按钮</div>
+    </figcaption>
+    <div class="phone" data-od-id="screen-home">
+      <div class="island"></div>
+      <div class="sb">
+        <span class="sb-t">9:41</span>
+        <span class="sb-r">
+          <svg width="18" height="11" viewBox="0 0 18 11" fill="#1A1A1A"><rect x="0" y="7.4" width="3" height="3.6" rx="1"/><rect x="4.8" y="5.2" width="3" height="5.8" rx="1"/><rect x="9.6" y="2.8" width="3" height="8.2" rx="1"/><rect x="14.4" y="0" width="3" height="11" rx="1"/></svg>
+          <svg width="16" height="11" viewBox="0 0 16 11" fill="none" stroke="#1A1A1A" stroke-width="1.5" stroke-linecap="round"><path d="M1.2 3.9a9.6 9.6 0 0 1 13.6 0"/><path d="M4 6.7a5.7 5.7 0 0 1 8 0"/><circle cx="8" cy="9.6" r="1.1" fill="#1A1A1A" stroke="none"/></svg>
+          <svg width="25" height="12" viewBox="0 0 25 12"><rect x=".6" y=".6" width="20.6" height="10.8" rx="3.2" fill="none" stroke="#1A1A1A" stroke-opacity=".35"/><rect x="2.4" y="2.4" width="15.2" height="7.2" rx="2" fill="#1A1A1A"/><path d="M22.6 4.2v3.6a2.1 2.1 0 0 0 0-3.6" fill="#1A1A1A" fill-opacity=".38"/></svg>
+        </span>
+      </div>
+      <div class="body" data-od-id="home-body">
+        <div class="brand" data-od-id="home-brand">
+          <div>
+            <div class="brand-n">声念</div>
+            <div class="brand-s">声落成章，念起成行</div>
+          </div>
+          <div class="ava">念</div>
+        </div>
+        <div class="search" data-od-id="home-search">
+          <svg class="ic"><use href="#i-search"/></svg><span>搜索灵感、标签或待办</span>
+        </div>
+        <div class="filters" data-od-id="home-filters">
+          <span class="chip ink">全部 12</span><span class="chip">产品</span><span class="chip">阅读</span>
+          <span class="chip">会议</span><span class="chip">生活</span>
+        </div>
+        <div class="feed" data-od-id="home-feed">
+          <div class="seclab">今天 <em>· AI 已整理 2 条</em></div>
+          <article class="note" data-od-id="note-card-voice-entry">
+            <div class="note-t">语音入口应该交给输入法，而不是自己造一个</div>
+            <div class="note-s">与其在应用里再做一遍录音，不如把系统听写这条最短路径留给用户。我们真正该做的是「说完之后」——把散落的口语整理成能被再次找到的结构。</div>
+            <div class="note-m">
+              <span class="note-time">14:26</span><span class="chip">产品</span>
+              <span class="note-td"><svg class="ic"><use href="#i-check-sq"/></svg>4 条待办</span>
+            </div>
+          </article>
+          <article class="note" data-od-id="note-card-subway-idea">
+            <div class="note-t">地铁上想到的：单手可达区决定主按钮位置</div>
+            <div class="note-s">通勤时右手扶栏杆，只有拇指能动，屏幕下半圆弧才是真正的可点区域。主按钮放在底部中央，比放在右上角更符合真实使用姿势。</div>
+            <div class="note-m">
+              <span class="note-time">08:12</span><span class="chip">产品</span>
+              <span class="note-td"><svg class="ic"><use href="#i-check-sq"/></svg>2 条待办</span>
+            </div>
+          </article>
+          <div class="seclab">昨天 <em>· AI 已整理 3 条</em></div>
+          <article class="note" data-od-id="note-card-reading-note">
+            <div class="note-t">《创造的勇气》第四章：先有形状，再有意义</div>
+            <div class="note-s">摘录：「灵感不是等来的，是在动手的过程中被逼出来的。」对应到产品上，用户不需要先想清楚再记，而是要能先记下来，再由工具替他想清楚。</div>
+            <div class="note-m">
+              <span class="note-time">22:47</span><span class="chip">阅读</span>
+              <span class="note-td"><svg class="ic"><use href="#i-check-sq"/></svg>1 条待办</span>
+            </div>
+          </article>
+          <article class="note" data-od-id="note-card-notebook-beach">
+            <div class="note-t">笔记本不该是水坝，该是沙滩</div>
+            <div class="note-s">水坝把东西拦住，沙滩留下痕迹。灵感工具的价值不在于存了多少，而在于退潮之后还能看见什么。</div>
+            <div class="note-m">
+              <span class="note-time">21:03</span><span class="chip">生活</span>
+              <span class="note-td"><svg class="ic"><use href="#i-check-sq"/></svg>1 条待办</span>
+            </div>
+          </article>
+        </div>
+        <div class="fade"></div>
+      </div>
+      <span class="fab-cap">记录灵感</span>
+      <button class="fab" data-od-id="home-fab" aria-label="记录灵感">
+        <svg class="ic"><use href="#i-nib"/></svg>
+      </button>
+      <nav class="tabbar" data-od-id="home-tabbar">
+        <div class="tab on"><svg class="ic"><use href="#i-home"/></svg><span>首页</span></div>
+        <div class="tab"><svg class="ic"><use href="#i-check-sq"/></svg><span>待办</span></div>
+        <div class="tab"><svg class="ic"><use href="#i-spark-tab"/></svg><span>洞察</span></div>
+      </nav>
+      <div class="hi"><i></i></div>
+    </div>
+  </figure>
+
+  <!-- ============ 02 快速记录 ============ -->
+  <figure class="board" data-od-id="board-capture">
+    <figcaption class="cap">
+      <div class="cap-h"><span class="cap-n">02</span><span class="cap-t">快速记录页 · 核心体验</span></div>
+      <div class="cap-d">极简衬线编辑器 + 系统键盘，听写键被一圈柔和光晕轻轻点亮</div>
+    </figcaption>
+    <div class="phone" data-od-id="screen-capture">
+      <div class="island"></div>
+      <div class="sb">
+        <span class="sb-t">9:41</span>
+        <span class="sb-r">
+          <svg width="18" height="11" viewBox="0 0 18 11" fill="#1A1A1A"><rect x="0" y="7.4" width="3" height="3.6" rx="1"/><rect x="4.8" y="5.2" width="3" height="5.8" rx="1"/><rect x="9.6" y="2.8" width="3" height="8.2" rx="1"/><rect x="14.4" y="0" width="3" height="11" rx="1"/></svg>
+          <svg width="16" height="11" viewBox="0 0 16 11" fill="none" stroke="#1A1A1A" stroke-width="1.5" stroke-linecap="round"><path d="M1.2 3.9a9.6 9.6 0 0 1 13.6 0"/><path d="M4 6.7a5.7 5.7 0 0 1 8 0"/><circle cx="8" cy="9.6" r="1.1" fill="#1A1A1A" stroke="none"/></svg>
+          <svg width="25" height="12" viewBox="0 0 25 12"><rect x=".6" y=".6" width="20.6" height="10.8" rx="3.2" fill="none" stroke="#1A1A1A" stroke-opacity=".35"/><rect x="2.4" y="2.4" width="15.2" height="7.2" rx="2" fill="#1A1A1A"/><path d="M22.6 4.2v3.6a2.1 2.1 0 0 0 0-3.6" fill="#1A1A1A" fill-opacity=".38"/></svg>
+        </span>
+      </div>
+      <div class="nav" data-od-id="capture-nav">
+        <button class="nav-btn">取消</button>
+        <button class="nav-btn pri">完成</button>
+      </div>
+      <div class="body" data-od-id="capture-body" style="overflow:visible;display:flex;flex-direction:column">
+        <div class="cap-meta">今天 14:26 · 未整理</div>
+        <div class="editor" data-od-id="capture-editor">
+          <span class="ph" id="capPh">说点什么，或写点什么…</span><span id="capTx"></span><span class="caret"></span>
+        </div>
+        <div class="aibar" data-od-id="capture-aihint">
+          <svg class="ic"><use href="#i-spark"/></svg>
+          <span>保存后自动整理，并提炼待办</span>
+        </div>
+      </div>
+      <div class="guide" data-od-id="capture-dictation-guide">
+        <span class="guide-pill">点键盘上的麦克风，直接说出来</span>
+        <svg class="guide-arrow" viewBox="0 0 390 32" fill="none" stroke="currentColor"
+          stroke-width="1.3" stroke-linecap="round">
+          <path d="M236 2c0 12 45 6 45 20" stroke-dasharray="2.5 3.5"/>
+          <path d="M277.4 18.6 281 23l3.6-4.4" stroke-width="1.6"/>
+        </svg>
+      </div>
+      <div class="kb" data-od-id="capture-keyboard">
+        <div class="kbrow">
+          <div class="key">q</div><div class="key">w</div><div class="key">e</div><div class="key">r</div>
+          <div class="key">t</div><div class="key">y</div><div class="key">u</div><div class="key">i</div>
+          <div class="key">o</div><div class="key">p</div>
+        </div>
+        <div class="kbrow" style="padding:0 21px">
+          <div class="key">a</div><div class="key">s</div><div class="key">d</div><div class="key">f</div>
+          <div class="key">g</div><div class="key">h</div><div class="key">j</div><div class="key">k</div>
+          <div class="key">l</div>
+        </div>
+        <div class="kbrow">
+          <div class="key fn w44"><svg class="ic"><use href="#i-shift"/></svg></div>
+          <div class="key">z</div><div class="key">x</div><div class="key">c</div><div class="key">v</div>
+          <div class="key">b</div><div class="key">n</div><div class="key">m</div>
+          <div class="key fn w44"><svg class="ic"><use href="#i-del"/></svg></div>
+        </div>
+        <div class="kbrow">
+          <div class="key fn w44" style="font-size:13px">123</div>
+          <div class="key w38"><svg class="ic"><use href="#i-globe"/></svg></div>
+          <div class="key sp">空格</div>
+          <div class="key mic" data-od-id="keyboard-dictation-key"><svg class="ic"><use href="#i-mic"/></svg></div>
+          <div class="key w78"><svg class="ic" style="width:17px;height:17px"><use href="#i-ret"/></svg></div>
+        </div>
+      </div>
+      <div class="hi" style="background:#D8D6CF"><i></i></div>
+    </div>
+  </figure>
+
+  <!-- ============ 03 笔记详情 ============ -->
+  <figure class="board" data-od-id="board-detail">
+    <figcaption class="cap">
+      <div class="cap-h"><span class="cap-n">03</span><span class="cap-t">笔记详情页</span></div>
+      <div class="cap-d">AI 摘要 + 带小标题的整理正文 + 一键加入待办</div>
+    </figcaption>
+    <div class="phone" data-od-id="screen-detail">
+      <div class="island"></div>
+      <div class="sb">
+        <span class="sb-t">9:41</span>
+        <span class="sb-r">
+          <svg width="18" height="11" viewBox="0 0 18 11" fill="#1A1A1A"><rect x="0" y="7.4" width="3" height="3.6" rx="1"/><rect x="4.8" y="5.2" width="3" height="5.8" rx="1"/><rect x="9.6" y="2.8" width="3" height="8.2" rx="1"/><rect x="14.4" y="0" width="3" height="11" rx="1"/></svg>
+          <svg width="16" height="11" viewBox="0 0 16 11" fill="none" stroke="#1A1A1A" stroke-width="1.5" stroke-linecap="round"><path d="M1.2 3.9a9.6 9.6 0 0 1 13.6 0"/><path d="M4 6.7a5.7 5.7 0 0 1 8 0"/><circle cx="8" cy="9.6" r="1.1" fill="#1A1A1A" stroke="none"/></svg>
+          <svg width="25" height="12" viewBox="0 0 25 12"><rect x=".6" y=".6" width="20.6" height="10.8" rx="3.2" fill="none" stroke="#1A1A1A" stroke-opacity=".35"/><rect x="2.4" y="2.4" width="15.2" height="7.2" rx="2" fill="#1A1A1A"/><path d="M22.6 4.2v3.6a2.1 2.1 0 0 0 0-3.6" fill="#1A1A1A" fill-opacity=".38"/></svg>
+        </span>
+      </div>
+      <div class="nav" data-od-id="detail-nav">
+        <span class="nav-ic"><svg class="ic"><use href="#i-chev-l"/></svg></span>
+        <span class="nav-r">
+          <span class="nav-ic"><svg class="ic" style="width:19px;height:19px"><use href="#i-mark"/></svg></span>
+          <span class="nav-ic"><svg class="ic"><use href="#i-dots"/></svg></span>
+        </span>
+      </div>
+      <div class="body" data-od-id="detail-body">
+        <div class="d-meta">
+          今天 14:26 · 原文 218 字<span class="chip ac"><svg class="ic" style="width:9px;height:9px"><use href="#i-spark"/></svg>AI 已整理</span>
+        </div>
+        <h1 class="d-title">语音入口应该交给输入法，<br>而不是自己造一个</h1>
+        <div class="d-tags">
+          <span class="chip">产品</span><span class="chip">输入方式</span><span class="chip">周一讨论</span>
+        </div>
+        <div class="d-sum" data-od-id="detail-ai-summary">
+          <div class="d-sum-l"><svg class="ic"><use href="#i-spark"/></svg>AI 摘要</div>
+          <p>团队确认不自建录音模块，语音输入交由系统输入法听写完成；产品重心放在「说完之后」的整理与提炼上。下一步收敛记录入口，只保留一个。</p>
+        </div>
+        <div class="d-body" data-od-id="detail-content">
+          <div class="d-sec">
+            <h2 class="d-h"><b>01</b>为什么不自己做录音</h2>
+            <p class="d-p">系统听写已经足够好，也更快。再造一遍只会多出一层学习成本，用户还得先想清楚要点哪个按钮。</p>
+          </div>
+          <div class="d-sec">
+            <h2 class="d-h"><b>02</b>真正的价值在整理之后</h2>
+            <p class="d-p">人在说的时候不会考虑格式，痛点出现在事后——找不到、想不起、用不上。结构化和提炼才是我们该做的事。</p>
+          </div>
+          <div class="d-sec">
+            <h2 class="d-h"><b>03</b>入口要收敛到一个</h2>
+            <p class="d-p">首页只留底部中央那颗按钮，记录页只提示听写键。</p>
+          </div>
+        </div>
+        <div class="d-td" data-od-id="detail-extracted-todos">
+          <div class="d-td-h">
+            <span class="seclab">AI 提炼的待办</span>
+            <span class="mod-n">4 条</span>
+          </div>
+          <div class="d-row">
+            <i class="d-dot"></i>
+            <span class="d-row-t">关掉录音相关的实验分支，同步给设计</span>
+            <button class="d-add">加入待办</button>
+          </div>
+          <div class="d-row">
+            <i class="d-dot"></i>
+            <span class="d-row-t">验证首页一屏四张卡片的信息密度</span>
+            <button class="d-add">加入待办</button>
+          </div>
+          <div class="d-row on">
+            <i class="d-dot"></i>
+            <span class="d-row-t">听写提示文案找文案同学过一版</span>
+            <button class="d-add on"><svg class="ic"><use href="#i-check"/></svg>已加入</button>
+          </div>
+          <div class="d-row">
+            <i class="d-dot"></i>
+            <span class="d-row-t">下周一给出记录入口的第二版方案</span>
+            <button class="d-add">加入待办</button>
+          </div>
+        </div>
+        <div class="fade" style="height:76px"></div>
+      </div>
+      <div class="hi"><i></i></div>
+    </div>
+  </figure>
+
+  <!-- ============ 04 智能待办 ============ -->
+  <figure class="board" data-od-id="board-todos">
+    <figcaption class="cap">
+      <div class="cap-h"><span class="cap-n">04</span><span class="cap-t">智能待办页</span></div>
+      <div class="cap-d">今天 / 接下来分组，每条都能回溯到来源笔记</div>
+    </figcaption>
+    <div class="phone" data-od-id="screen-todos">
+      <div class="island"></div>
+      <div class="sb">
+        <span class="sb-t">9:41</span>
+        <span class="sb-r">
+          <svg width="18" height="11" viewBox="0 0 18 11" fill="#1A1A1A"><rect x="0" y="7.4" width="3" height="3.6" rx="1"/><rect x="4.8" y="5.2" width="3" height="5.8" rx="1"/><rect x="9.6" y="2.8" width="3" height="8.2" rx="1"/><rect x="14.4" y="0" width="3" height="11" rx="1"/></svg>
+          <svg width="16" height="11" viewBox="0 0 16 11" fill="none" stroke="#1A1A1A" stroke-width="1.5" stroke-linecap="round"><path d="M1.2 3.9a9.6 9.6 0 0 1 13.6 0"/><path d="M4 6.7a5.7 5.7 0 0 1 8 0"/><circle cx="8" cy="9.6" r="1.1" fill="#1A1A1A" stroke="none"/></svg>
+          <svg width="25" height="12" viewBox="0 0 25 12"><rect x=".6" y=".6" width="20.6" height="10.8" rx="3.2" fill="none" stroke="#1A1A1A" stroke-opacity=".35"/><rect x="2.4" y="2.4" width="15.2" height="7.2" rx="2" fill="#1A1A1A"/><path d="M22.6 4.2v3.6a2.1 2.1 0 0 0 0-3.6" fill="#1A1A1A" fill-opacity=".38"/></svg>
+        </span>
+      </div>
+      <div class="body" data-od-id="todos-body">
+        <div class="h1row" data-od-id="todos-header">
+          <h1 class="h1">待办</h1>
+          <span class="nav-ic"><svg class="ic" style="width:19px;height:19px"><use href="#i-sort"/></svg></span>
+        </div>
+        <div class="prog" data-od-id="todos-progress">
+          <div class="prog-t"><span>8 月 30 日 · 周六</span><b>今天 4 项 · 已完成 2</b></div>
+          <div class="prog-bar"><i></i></div>
+        </div>
+        <div class="grp" data-od-id="todos-group-today">
+          <div class="seclab">今天</div>
+          <div class="sheet">
+            <div class="t-row">
+              <button class="box" aria-label="完成"><svg class="ic"><use href="#i-check"/></svg></button>
+              <div class="t-main">
+                <div class="t-t"><span>关掉录音相关的实验分支，同步给设计</span><i class="pri hi">高</i></div>
+                <div class="t-sub">
+                  <span class="t-src"><svg class="ic"><use href="#i-note-link"/></svg>来自：周一产品讨论</span>
+                  <span class="t-due">今天 18:00</span>
+                </div>
+              </div>
+            </div>
+            <div class="t-row">
+              <button class="box" aria-label="完成"><svg class="ic"><use href="#i-check"/></svg></button>
+              <div class="t-main">
+                <div class="t-t"><span>把「先记下来」写进首页文案的备选</span><i class="pri mid">中</i></div>
+                <div class="t-sub">
+                  <span class="t-src"><svg class="ic"><use href="#i-note-link"/></svg>来自：笔记本不该是水坝</span>
+                </div>
+              </div>
+            </div>
+            <div class="doneline">已完成 2 项</div>
+            <div class="t-row on">
+              <button class="box" aria-label="完成"><svg class="ic"><use href="#i-check"/></svg></button>
+              <div class="t-main">
+                <div class="t-t"><span>听写提示文案找文案同学过一版</span></div>
+                <div class="t-sub">
+                  <span class="t-src"><svg class="ic"><use href="#i-note-link"/></svg>来自：周一产品讨论</span>
+                </div>
+              </div>
+            </div>
+            <div class="t-row on">
+              <button class="box" aria-label="完成"><svg class="ic"><use href="#i-check"/></svg></button>
+              <div class="t-main">
+                <div class="t-t"><span>回衬线字体授权邮件</span></div>
+                <div class="t-sub">
+                  <span class="t-src"><svg class="ic"><use href="#i-note-link"/></svg>来自：字体选型速记</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="grp" data-od-id="todos-group-next">
+          <div class="seclab">接下来 <em>· 2 项</em></div>
+          <div class="sheet">
+            <div class="t-row">
+              <button class="box" aria-label="完成"><svg class="ic"><use href="#i-check"/></svg></button>
+              <div class="t-main">
+                <div class="t-t"><span>验证首页一屏四张卡片的信息密度</span><i class="pri mid">中</i></div>
+                <div class="t-sub">
+                  <span class="t-src"><svg class="ic"><use href="#i-note-link"/></svg>来自：周一产品讨论</span>
+                  <span class="t-due">明天</span>
+                </div>
+              </div>
+            </div>
+            <div class="t-row">
+              <button class="box" aria-label="完成"><svg class="ic"><use href="#i-check"/></svg></button>
+              <div class="t-main">
+                <div class="t-t"><span>给出记录入口的第二版方案</span><i class="pri hi">高</i></div>
+                <div class="t-sub">
+                  <span class="t-src"><svg class="ic"><use href="#i-note-link"/></svg>来自：周一产品讨论</span>
+                  <span class="t-due">下周一</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="fade"></div>
+      </div>
+      <button class="fab" data-od-id="todos-fab" aria-label="记录灵感">
+        <svg class="ic"><use href="#i-nib"/></svg>
+      </button>
+      <nav class="tabbar" data-od-id="todos-tabbar">
+        <div class="tab"><svg class="ic"><use href="#i-home"/></svg><span>首页</span></div>
+        <div class="tab on"><svg class="ic"><use href="#i-check-sq"/></svg><span>待办</span></div>
+        <div class="tab"><svg class="ic"><use href="#i-spark-tab"/></svg><span>洞察</span></div>
+      </nav>
+      <div class="hi"><i></i></div>
+    </div>
+  </figure>
+
+  <!-- ============ 05 洞察 ============ -->
+  <figure class="board" data-od-id="board-insights">
+    <figcaption class="cap">
+      <div class="cap-h"><span class="cap-n">05</span><span class="cap-t">洞察页</span></div>
+      <div class="cap-d">本周记录、时段分布与关键词云，克制的轻量可视化</div>
+    </figcaption>
+    <div class="phone" data-od-id="screen-insights">
+      <div class="island"></div>
+      <div class="sb">
+        <span class="sb-t">9:41</span>
+        <span class="sb-r">
+          <svg width="18" height="11" viewBox="0 0 18 11" fill="#1A1A1A"><rect x="0" y="7.4" width="3" height="3.6" rx="1"/><rect x="4.8" y="5.2" width="3" height="5.8" rx="1"/><rect x="9.6" y="2.8" width="3" height="8.2" rx="1"/><rect x="14.4" y="0" width="3" height="11" rx="1"/></svg>
+          <svg width="16" height="11" viewBox="0 0 16 11" fill="none" stroke="#1A1A1A" stroke-width="1.5" stroke-linecap="round"><path d="M1.2 3.9a9.6 9.6 0 0 1 13.6 0"/><path d="M4 6.7a5.7 5.7 0 0 1 8 0"/><circle cx="8" cy="9.6" r="1.1" fill="#1A1A1A" stroke="none"/></svg>
+          <svg width="25" height="12" viewBox="0 0 25 12"><rect x=".6" y=".6" width="20.6" height="10.8" rx="3.2" fill="none" stroke="#1A1A1A" stroke-opacity=".35"/><rect x="2.4" y="2.4" width="15.2" height="7.2" rx="2" fill="#1A1A1A"/><path d="M22.6 4.2v3.6a2.1 2.1 0 0 0 0-3.6" fill="#1A1A1A" fill-opacity=".38"/></svg>
+        </span>
+      </div>
+      <div class="body" data-od-id="insights-body">
+        <div class="i-head" data-od-id="insights-header">
+          <div>
+            <h1 class="h1">洞察</h1>
+            <div class="i-sub">8 月 24 日 — 8 月 30 日</div>
+          </div>
+          <span class="chip line">本周</span>
+        </div>
+        <div class="tiles" data-od-id="insights-tiles">
+          <div class="tile">
+            <div class="tile-l">记录条数</div>
+            <div class="tile-v num">23</div>
+            <div class="tile-f ac num">较上周 +6</div>
+          </div>
+          <div class="tile">
+            <div class="tile-l">提炼待办</div>
+            <div class="tile-v num">41<i>项</i></div>
+            <div class="tile-f num">已完成 28</div>
+          </div>
+          <div class="tile">
+            <div class="tile-l">完成率</div>
+            <div class="tile-v num">68<i>%</i></div>
+            <div class="tile-f num">上周 61%</div>
+          </div>
+        </div>
+        <div class="sheet mod" data-od-id="insights-streak">
+          <div class="mod-h">
+            <span class="mod-t">连续记录</span>
+            <span class="mod-n">12 天</span>
+          </div>
+          <div class="streak" id="streakDots"></div>
+          <div class="streak-n" style="margin-top:10px">最长连续 19 天 · 7 月</div>
+        </div>
+        <div class="sheet mod" data-od-id="insights-hours">
+          <div class="mod-h">
+            <span class="mod-t">记录时段分布</span>
+            <span class="mod-n">灵感高峰在 22:00 前后</span>
+          </div>
+          <div class="hrs" id="hourBars"></div>
+          <div class="hax"><span>0</span><span>6</span><span>12</span><span>18</span><span>23</span></div>
+        </div>
+        <div class="sheet mod" data-od-id="insights-cloud">
+          <div class="mod-h">
+            <span class="mod-t">灵感关键词</span>
+            <span class="mod-n">近 30 天</span>
+          </div>
+          <div class="cloud">
+            <span class="kw s1">输入法</span><span class="kw s2">灵感</span><span class="kw s4">单手可达</span>
+            <span class="kw s3">整理</span><span class="kw s5">留白</span><span class="kw s2">待办</span>
+            <span class="kw s4">信息密度</span><span class="kw s3">衬线</span>
+            <span class="kw s4">收敛入口</span><span class="kw s5">通勤</span>
+          </div>
+        </div>
+        <div class="fade"></div>
+      </div>
+      <button class="fab" data-od-id="insights-fab" aria-label="记录灵感">
+        <svg class="ic"><use href="#i-nib"/></svg>
+      </button>
+      <nav class="tabbar" data-od-id="insights-tabbar">
+        <div class="tab"><svg class="ic"><use href="#i-home"/></svg><span>首页</span></div>
+        <div class="tab"><svg class="ic"><use href="#i-check-sq"/></svg><span>待办</span></div>
+        <div class="tab on"><svg class="ic"><use href="#i-spark-tab"/></svg><span>洞察</span></div>
+      </nav>
+      <div class="hi"><i></i></div>
+    </div>
+  </figure>
+
+  </div>
+</section>
+
+<script>
+(function(){
+  /* ---- 05 时段分布：24 个 2 小时桶 ---- */
+  var hours=[0,0,0,0,0,0,1,3,6,4,5,7,4,3,2,4,5,6,8,9,11,10,13,7];
+  var max=13, peak=22, bars=document.getElementById('hourBars');
+  hours.forEach(function(v,i){
+    var b=document.createElement('i');
+    b.className='hr'+(i===peak?' pk':(i>=20?' eve':''));
+    b.style.height=Math.max(3,Math.round(v/max*88))+'px';
+    b.title=i+':00 · '+v+' 条';
+    bars.appendChild(b);
+  });
+
+  /* ---- 05 连续记录：近 14 天 ---- */
+  var streak=[0,1,1,1,1,1,1,1,1,1,1,1,1,1], sd=document.getElementById('streakDots');
+  streak.forEach(function(v,i){
+    var d=document.createElement('i');
+    d.className='sd'+(i===streak.length-1?' today':(v?' on':''));
+    sd.appendChild(d);
+  });
+
+  /* ---- 02 编辑器打字动效（进入视口时播放一次） ---- */
+  var txt='语音入口应该交给输入法，我们不自己造录音。真正该做的是把说完的话整理成能被再次找到的结构。',
+      ph=document.getElementById('capPh'), tx=document.getElementById('capTx'), played=false;
+  function type(){
+    if(played) return; played=true;
+    setTimeout(function(){
+      ph.style.display='none';
+      var i=0;
+      (function step(){
+        if(i>=txt.length) return;
+        tx.textContent+=txt.charAt(i++);
+        setTimeout(step, 52+Math.random()*46);
+      })();
+    },1100);
+  }
+  if(window.matchMedia('(prefers-reduced-motion:reduce)').matches){
+    ph.style.display='none'; tx.textContent=txt; played=true;
+  }else if('IntersectionObserver' in window){
+    var io=new IntersectionObserver(function(es){
+      es.forEach(function(e){ if(e.isIntersecting){ type(); io.disconnect(); } });
+    },{threshold:.35});
+    io.observe(document.querySelector('[data-od-id="screen-capture"]'));
+  }else{ type(); }
+
+  /* ---- 04 勾选切换 ---- */
+  document.querySelectorAll('.t-row .box').forEach(function(b){
+    b.addEventListener('click',function(){ b.closest('.t-row').classList.toggle('on'); });
+  });
+
+  /* ---- 03 加入待办 ---- */
+  document.querySelectorAll('.d-add').forEach(function(b){
+    b.addEventListener('click',function(){
+      var on=b.classList.toggle('on');
+      b.closest('.d-row').classList.toggle('on',on);
+      b.innerHTML=on
+        ? '<svg class="ic"><use href="#i-check"/></svg>已加入'
+        : '加入待办';
+    });
+  });
+})();
+</script>
+</body>
+</html>

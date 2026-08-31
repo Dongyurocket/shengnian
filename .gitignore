@@ -1,0 +1,15 @@
+# Android / Gradle
+.gradle/
+build/
+local.properties
+*.iml
+.idea/
+.cxx/
+.kotlin/
+
+# OS
+Thumbs.db
+.DS_Store
+
+# 设计稿镜像与计划保留入库
+!docs/
