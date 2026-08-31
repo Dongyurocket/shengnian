@@ -4,9 +4,22 @@
 
 ## [Unreleased] - 2026-08-31
 
+后续变更记录将在此处追加。
+
+## [0.2.1] - 2026-08-31
+
 ### 文案与设计
 - 重写 README、移动端设计稿与实现计划的产品叙事，突出灵感采集、AI 整理、智能待办、语义关联、洞察和本地优先体验
 - 补充声念的核心优势、使用价值和功能说明，统一 Android 端的设计基准与交互表述
+
+### DeepSeek 联调
+- Responses `json_schema strict`：所有对象属性完整加入 `required`，并将 `additionalProperties` 设为 `false`，同时补齐关联项的嵌套 Schema，修复 DeepSeek HTTP 400
+- DeepSeek V4 三协议请求关闭默认思考模式：Chat / Anthropic 使用 `thinking.type = "disabled"`，Responses 使用 `reasoning.effort = "none"`，为结构化 JSON 保留输出额度
+- Anthropic 预填解析兼容完整 JSON 与空 `content`，设置页连接测试按协议响应状态提示“连接成功”，不再把非严格业务文本显示成连接异常
+- strict Schema 的空字段和提醒占位值在兜底解析层规范化，不生成空分类，也不覆盖默认提醒设置
+
+### 工程
+- 单元测试增至 44 个，补充 DeepSeek strict Schema、三协议思考模式请求、Anthropic 预填边界和连接测试提示回归
 
 ## [0.2.0] - 2026-08-31
 

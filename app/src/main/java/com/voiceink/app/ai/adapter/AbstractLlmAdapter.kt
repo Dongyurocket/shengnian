@@ -1,5 +1,6 @@
 package com.voiceink.app.ai.adapter
 
+import com.voiceink.app.ai.LlmEndpoint
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
@@ -50,6 +51,13 @@ abstract class AbstractLlmAdapter(
     protected fun apiUrl(baseUrl: String, path: String): String {
         val b = baseUrl.trimEnd('/')
         return if (b.endsWith("/v1")) b + path else b + "/v1" + path
+    }
+
+    /** DeepSeek V4 默认开启思考；结构化抽取需把输出额度留给 JSON 正文。 */
+    protected fun isDeepSeekEndpoint(endpoint: LlmEndpoint): Boolean {
+        val model = endpoint.model.trim().lowercase()
+        val baseUrl = endpoint.baseUrl.lowercase()
+        return model.startsWith("deepseek-") || baseUrl.contains("api.deepseek.com")
     }
 
     protected open fun parseErrorMessage(body: String): String = body.take(300)

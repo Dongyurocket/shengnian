@@ -39,6 +39,10 @@ class AnthropicMessagesAdapter @Inject constructor(
             put("max_tokens", request.maxTokens)   // 必填
             put("system", request.system)          // 顶层 system，不进 messages
             put("temperature", request.temperature)
+            if (isDeepSeekEndpoint(endpoint)) {
+                // DeepSeek V4 默认思考，关闭后避免思维内容耗尽 JSON 输出额度。
+                putJsonObject("thinking") { put("type", "disabled") }
+            }
             putJsonArray("messages") {
                 add(buildJsonObject {
                     put("role", "user")
@@ -75,8 +79,14 @@ class AnthropicMessagesAdapter @Inject constructor(
             (it["input_tokens"]?.jsonPrimitive?.intOrNull ?: 0) +
                 (it["output_tokens"]?.jsonPrimitive?.intOrNull ?: 0)
         }
+        val continuation = partial.trimStart()
+        val text = when {
+            continuation.isBlank() -> ""
+            continuation.startsWith("{") -> continuation
+            else -> "{" + continuation
+        }
         return LlmResult(
-            text = "{" + partial.trimStart(),   // 拼回 prefill 的 '{'
+            text = text,                         // 拼回 prefill 的 '{'，避免重复拼接
             stopReason = if (stop == "max_tokens") StopReason.MAX_TOKENS else StopReason.COMPLETE,
             usageTokens = usage
         )

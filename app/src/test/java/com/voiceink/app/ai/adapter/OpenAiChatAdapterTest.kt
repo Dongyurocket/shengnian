@@ -56,6 +56,19 @@ class OpenAiChatAdapterTest {
     }
 
     @Test
+    fun `DeepSeek Chat 请求关闭默认思考模式`() = runTest {
+        server.enqueue(
+            MockResponse().setBody("""{"choices":[{"message":{"content":"{}"},"finish_reason":"stop"}]}""")
+        )
+        adapter.complete(
+            endpoint().copy(model = "deepseek-v4-flash"),
+            LlmRequest("s", "u", "intent")
+        )
+        val body = server.takeRequest().body.readUtf8()
+        assertTrue(body.contains("\"thinking\":{\"type\":\"disabled\"}"))
+    }
+
+    @Test
     fun `429 映射为可重试错误`() = runTest {
         server.enqueue(
             MockResponse().setResponseCode(429)

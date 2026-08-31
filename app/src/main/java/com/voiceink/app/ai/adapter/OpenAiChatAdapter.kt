@@ -82,6 +82,10 @@ class OpenAiChatAdapter @Inject constructor(
             putJsonObject("response_format") { put("type", "json_object") }
         }
         put("temperature", request.temperature)
+        if (isDeepSeekEndpoint(endpoint)) {
+            // DeepSeek V4 默认思考，关闭后将 max_tokens 留给结构化正文。
+            putJsonObject("thinking") { put("type", "disabled") }
+        }
         if (useCompletionTokens) put("max_completion_tokens", request.maxTokens)
         else put("max_tokens", request.maxTokens)
     }

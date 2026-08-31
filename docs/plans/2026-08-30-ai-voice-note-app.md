@@ -627,6 +627,9 @@ class OpenAiResponsesAdapter @Inject constructor(client: OkHttpClient, json: Jso
                     }
                 }
             }
+            if (isDeepSeekEndpoint(endpoint)) {
+                putJsonObject("reasoning") { put("effort", "none") }
+            }
             putJsonObject("text") {
                 putJsonObject("format") {
                     put("type", "json_schema")
@@ -677,13 +680,16 @@ class OpenAiResponsesAdapter @Inject constructor(client: OkHttpClient, json: Jso
 
 **兼容性说明**：`json_schema strict` 不被某些中转支持时，捕获 400 → 降级为 `format: {"type": "json_object"}` 重试；推理模型（o 系/GPT-5 reasoning）会额外出现 `type=="reasoning"` 的 output 项，解析逻辑已天然跳过。
 
+**DeepSeek strict 约束**：DeepSeek 要求每个 `object` 的 `properties` 全部列入 `required`，并将 `additionalProperties` 设为 `false`；嵌套数组对象也必须遵守该规则。当前 Schema 对不适用字段使用空字符串、空数组或占位数字，解析层会把这些占位值还原为可选语义。DeepSeek V4 默认开启思考，识别到 DeepSeek 端点时请求使用 `reasoning.effort = "none"`，将输出额度留给结构化正文。
+
 ### 7.5 适配器三：Anthropic Messages API
 
 **协议要点**（与前两者差异最大，重点核对）：
 - `POST {baseUrl}/v1/messages`；认证头是 **`x-api-key`**（不是 Bearer），另必须带 **`anthropic-version: 2023-06-01`**。
 - 请求体 **`system` 是顶层字段**，`messages` 只允许 user/assistant 交替；`content` 用数组块 `[{"type":"text","text":...}]`。
 - **`max_tokens` 必填**。
-- 没有 `response_format`；强制 JSON 的可靠做法是 **assistant 预填（prefill）**：在 messages 末尾追加 `{"role":"assistant","content":[{"type":"text","text":"{"}]}`，模型会从 `{` 之后续写，解析时把 `{` 拼回去。
+- DeepSeek V4 默认开启思考；为保证结构化抽取，识别到 DeepSeek 端点时发送 `thinking: {"type":"disabled"}`，避免思维内容耗尽 JSON 输出额度。
+- 没有 `response_format`；强制 JSON 的可靠做法是 **assistant 预填（prefill）**：在 messages 末尾追加 `{"role":"assistant","content":[{"type":"text","text":"{"}]}`，模型会从 `{` 之后续写，解析时把 `{` 拼回去；若服务端已经返回完整 `{...}` 或空 content，解析器会分别避免重复拼接或保留空响应。
 - 响应结构：`{"content":[{"type":"text","text":"..."}], "stop_reason":"end_turn"|"max_tokens", "usage":{...}}`。
 
 ```kotlin
@@ -699,6 +705,9 @@ class AnthropicMessagesAdapter @Inject constructor(client: OkHttpClient, json: J
             put("max_tokens", request.maxTokens)              // 必填
             put("system", request.system)                     // 顶层 system，不进 messages
             put("temperature", request.temperature)
+            if (isDeepSeekEndpoint(endpoint)) {
+                putJsonObject("thinking") { put("type", "disabled") }
+            }
             putJsonArray("messages") {
                 addJsonObject {
                     put("role", "user")
@@ -733,8 +742,14 @@ class AnthropicMessagesAdapter @Inject constructor(client: OkHttpClient, json: J
             (it["input_tokens"]?.jsonPrimitive?.intOrNull ?: 0) +
                 (it["output_tokens"]?.jsonPrimitive?.intOrNull ?: 0)
         }
+        val continuation = partial.trimStart()
+        val text = when {
+            continuation.isBlank() -> ""
+            continuation.startsWith("{") -> continuation
+            else -> "{" + continuation
+        }
         return LlmResult(
-            text = "{" + partial.trimStart(),   // 拼回 prefill 的 '{'
+            text = text,                         // 拼回 prefill 的 '{'，避免重复拼接
             stopReason = if (stop == "max_tokens") StopReason.MAX_TOKENS else StopReason.COMPLETE,
             usageTokens = usage
         )
@@ -762,6 +777,8 @@ class AnthropicMessagesAdapter @Inject constructor(client: OkHttpClient, json: J
 | 截断信号 | `finish_reason=length` | `status=incomplete`+reason | `stop_reason=max_tokens` |
 | max_tokens 必填 | 否 | 否（`max_output_tokens`） | **是** |
 | Embedding | 与聊天协议解耦，独立配置任意 OpenAI 兼容端点（见 §9.4） | 同左 | 同左 |
+
+DeepSeek V4 的三个协议适配器都会关闭默认思考模式：Chat / Anthropic 使用 `thinking.type = "disabled"`，Responses 使用 `reasoning.effort = "none"`。设置页的「测试连接」只报告 HTTP 与协议响应是否成功；返回文本是否严格符合业务 Schema 由 AI 流水线的统一兜底解析负责。
 
 ### 7.7 契约测试（MockWebServer）
 
@@ -889,7 +906,8 @@ class AiPipeline @Inject constructor(
 object Prompts {
     val INTENT_AND_ORGANIZE = """
 你是一个个人笔记整理助手。用户会提供一段待整理的输入文本，内容可能包含口语、重复、识别错字或零散片段。
-请先纠正明显错字，再判断意图并只输出一个 JSON 对象，不要输出任何其他文字。
+请先纠正明显错字，再判断意图并只输出一个合法 JSON（json）对象，不要输出任何其他文字。
+下面列出的全部字段都必须输出：不适用的字符串字段输出空字符串，数组字段输出 []；未指定提醒时 `remind_lead_minutes` 输出 -1。
 
 意图 A：灵感/想法/随笔/记录 → 输出：
 {
@@ -900,15 +918,26 @@ object Prompts {
   "type": "灵感|总结|摘录|待研究|日记 之一",
   "mood": "积极|中立|消极",
   "tags": ["3-5个精准关键词"],
-  "summary": "一句话摘要"
+  "summary": "一句话摘要",
+  "todos": ["从正文中提炼出的可执行待办，0-3条，无则输出空数组"],
+  "priority": 0,
+  "deadline": "",
+  "remind_lead_minutes": 0
 }
 意图 B：待办/计划/提醒 → 输出：
 {
   "intent": "todo",
+  "title": "",
   "content": "任务内容（动宾结构，可执行）",
+  "category": "",
+  "type": "",
+  "mood": "",
+  "tags": [],
+  "summary": "",
+  "todos": [],
   "priority": 0或1或2,
-  "deadline": "yyyy-MM-dd HH:mm，无明确时间则省略该字段",
-  "remind_lead_minutes": 提前提醒分钟数，用户未指定则省略
+  "deadline": "yyyy-MM-dd HH:mm，无明确时间则输出空字符串",
+  "remind_lead_minutes": 提前提醒分钟数，用户未指定则输出 -1
 }
 时间词（明天/下周三/下班前）一律以用户提供的“当前时间”为基准换算成绝对时间。
 """.trimIndent()

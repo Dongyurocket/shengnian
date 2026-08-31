@@ -7,6 +7,9 @@ import kotlinx.coroutines.delay
 import javax.inject.Inject
 import javax.inject.Singleton
 
+internal fun connectionTestMessage(responseText: String): String =
+    if (responseText.isBlank()) "连接成功（模型未返回内容）" else "连接成功"
+
 /**
  * 统一出口（§7.2）：读配置 → 选 adapter → 仅对可重试错误指数退避（1s/2s，最多 3 次）。
  * 401/403 等致命错误直接抛给上层提示用户检查 Key。
@@ -46,21 +49,15 @@ class LlmGateway @Inject constructor(
             val r = adapter.complete(
                 endpoint,
                 LlmRequest(
-                    system = "你只输出 JSON。",
-                    user = "输出 {\"ok\":true}",
+                    system = "你只输出一个合法 JSON 对象（json）。",
+                    user = "请输出一个 JSON 对象，示例：{\"ok\":true}",
                     jsonSchemaName = "intent",
                     // 推理模型会先消耗思考 token，512 比 64 更不容易造成空响应误判
                     maxTokens = 512
                 )
             )
-            when {
-                r.text.isBlank() ->
-                    "已连通，但模型返回为空（推理模型可能把额度用于思考，建议换非推理模型或确认额度）"
-                com.voiceink.app.ai.prompt.JsonExtractor.firstJsonObject(r.text) != null ->
-                    "连接成功"
-                else ->
-                    "连接成功（响应非严格 JSON，将由兜底解析处理）"
-            }
+            // 连接测试只判断端点和协议响应是否成功；业务 JSON 由流水线统一兜底解析。
+            connectionTestMessage(r.text)
         } catch (e: LlmException) {
             "失败（HTTP ${e.httpCode}）：${e.message?.take(80)}"
         } catch (e: Exception) {

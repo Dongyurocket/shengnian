@@ -52,7 +52,7 @@ UI (Compose) → ViewModel (StateFlow) → 领域层 (CaptureController / AiPipe
 
 ```bash
 ./gradlew :app:assembleDebug        # 调试包
-./gradlew :app:testDebugUnitTest    # 单元测试（35 个：三协议契约 / JSON Schema 与兜底 / 关联算法 / GitHub Release 解析与版本比较）
+./gradlew :app:testDebugUnitTest    # 单元测试（44 个：三协议契约 / DeepSeek Schema 与思考模式 / JSON 兜底 / 关联算法 / GitHub Release 解析与版本比较）
 ./gradlew :app:assembleRelease      # 发布包（需在 local.properties 配置签名，见下）
 ```
 

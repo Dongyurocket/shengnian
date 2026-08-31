@@ -59,6 +59,19 @@ class OpenAiResponsesAdapterTest {
     }
 
     @Test
+    fun `DeepSeek Responses 请求关闭默认思考模式`() = runTest {
+        server.enqueue(
+            MockResponse().setBody("""{"status":"completed","output_text":"{}"}""")
+        )
+        adapter.complete(
+            endpoint().copy(model = "deepseek-v4-flash"),
+            LlmRequest("s", "u", "intent")
+        )
+        val body = server.takeRequest().body.readUtf8()
+        assertTrue(body.contains("\"reasoning\":{\"effort\":\"none\"}"))
+    }
+
+    @Test
     fun `便捷字段 output_text 直返时优先使用`() = runTest {
         server.enqueue(
             MockResponse().setBody(

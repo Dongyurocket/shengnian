@@ -75,6 +75,26 @@ class JsonExtractorTest {
     }
 
     @Test
+    fun `strict schema 的占位字段不会变成空元数据或提醒`() {
+        val note = JsonExtractor.extractIntent(
+            """{"intent":"note","title":"t","content":"c","category":"","type":"","mood":"","tags":[],"summary":"","todos":[],"priority":0,"deadline":"","remind_lead_minutes":0}"""
+        )
+        assertTrue(note is ParsedIntent.Note)
+        note as ParsedIntent.Note
+        assertNull(note.category)
+        assertNull(note.type)
+        assertNull(note.mood)
+        assertNull(note.summary)
+
+        val todo = JsonExtractor.extractIntent(
+            """{"intent":"todo","title":"","content":"c","category":"","type":"","mood":"","tags":[],"summary":"","todos":[],"priority":1,"deadline":"","remind_lead_minutes":-1}"""
+        )
+        assertTrue(todo is ParsedIntent.Todo)
+        assertNull((todo as ParsedIntent.Todo).deadline)
+        assertNull(todo.remindLeadMinutes)
+    }
+
+    @Test
     fun `笔记意图可提炼待办`() {
         val raw = """{"intent":"note","title":"t","content":"c","todos":["关掉实验分支","回复授权邮件"]}"""
         val r = JsonExtractor.extractIntent(raw)

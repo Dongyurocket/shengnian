@@ -59,6 +59,19 @@ class AnthropicMessagesAdapterTest {
     }
 
     @Test
+    fun `DeepSeek Anthropic 请求关闭默认思考模式`() = runTest {
+        server.enqueue(
+            MockResponse().setBody("""{"content":[{"type":"text","text":"ok"}],"stop_reason":"end_turn"}""")
+        )
+        adapter.complete(
+            endpoint().copy(model = "deepseek-v4-flash"),
+            LlmRequest("s", "u", "intent")
+        )
+        val body = server.takeRequest().body.readUtf8()
+        assertTrue(body.contains("\"thinking\":{\"type\":\"disabled\"}"))
+    }
+
+    @Test
     fun `stop_reason=max_tokens 识别为截断`() = runTest {
         server.enqueue(
             MockResponse().setBody(
@@ -67,6 +80,28 @@ class AnthropicMessagesAdapterTest {
         )
         val r = adapter.complete(endpoint(), LlmRequest("s", "u", "intent"))
         assertEquals(StopReason.MAX_TOKENS, r.stopReason)
+    }
+
+    @Test
+    fun `服务端已返回完整 JSON 时不重复拼接预填左括号`() = runTest {
+        server.enqueue(
+            MockResponse().setBody(
+                """{"content":[{"type":"text","text":"{\"intent\":\"note\"}"}],"stop_reason":"end_turn"}"""
+            )
+        )
+        val r = adapter.complete(endpoint(), LlmRequest("s", "u", "intent"))
+        assertEquals("{\"intent\":\"note\"}", r.text)
+    }
+
+    @Test
+    fun `服务端返回空 content 时保留空响应而不是伪造左括号`() = runTest {
+        server.enqueue(
+            MockResponse().setBody(
+                """{"content":[],"stop_reason":"end_turn"}"""
+            )
+        )
+        val r = adapter.complete(endpoint(), LlmRequest("s", "u", "intent"))
+        assertEquals("", r.text)
     }
 
     @Test

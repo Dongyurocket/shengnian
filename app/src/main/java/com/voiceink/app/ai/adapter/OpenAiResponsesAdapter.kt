@@ -75,6 +75,10 @@ class OpenAiResponsesAdapter @Inject constructor(
                     }
                 })
             }
+            if (isDeepSeekEndpoint(endpoint)) {
+                // DeepSeek Responses 的 none 表示关闭默认思考模式。
+                putJsonObject("reasoning") { put("effort", "none") }
+            }
             putJsonObject("text") {
                 putJsonObject("format") {
                     if (useJsonSchema) {

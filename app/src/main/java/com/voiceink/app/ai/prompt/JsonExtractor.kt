@@ -31,22 +31,24 @@ object JsonExtractor {
                     content = content,
                     priority = o["priority"]?.jsonPrimitive?.intOrNull?.coerceIn(0, 2) ?: 1,
                     deadline = o["deadline"]?.jsonPrimitive?.contentOrNull
+                        ?.takeIf { it.isNotBlank() }
                         ?.let { TimeUtils.parseDateTime(it) },
                     remindLeadMinutes = o["remind_lead_minutes"]?.jsonPrimitive?.intOrNull
+                        ?.takeIf { it >= 0 }
                         ?.coerceIn(0, 24 * 60)
                 )
             }
             "note" -> ParsedIntent.Note(
                 title = o["title"]?.jsonPrimitive?.contentOrNull.orEmpty(),
                 content = o["content"]?.jsonPrimitive?.contentOrNull.orEmpty(),
-                category = o["category"]?.jsonPrimitive?.contentOrNull,
-                type = o["type"]?.jsonPrimitive?.contentOrNull,
-                mood = o["mood"]?.jsonPrimitive?.contentOrNull,
+                category = optionalText(o, "category"),
+                type = optionalText(o, "type"),
+                mood = optionalText(o, "mood"),
                 tags = o["tags"]?.jsonArray
                     ?.mapNotNull { it.jsonPrimitive.contentOrNull }
                     ?.filter { it.isNotBlank() }
                     ?: emptyList(),
-                summary = o["summary"]?.jsonPrimitive?.contentOrNull,
+                summary = optionalText(o, "summary"),
                 todos = o["todos"]?.jsonArray
                     ?.mapNotNull { it.jsonPrimitive.contentOrNull }
                     ?.map { it.trim() }
@@ -56,6 +58,9 @@ object JsonExtractor {
             else -> ParsedIntent.Unparseable
         }
     }
+
+    private fun optionalText(o: JsonObject, key: String): String? =
+        o[key]?.jsonPrimitive?.contentOrNull?.takeIf { it.isNotBlank() }
 
     /** 解析关联复核输出：{"related":[{"id":17,"reason":"…"}]} → List<Pair<id, reason>> */
     fun extractLinks(raw: String): List<Pair<Long, String>> {
