@@ -33,6 +33,8 @@ enum class NoteListMode(val label: String) {
 
 data class NoteSection(val label: String, val notes: List<NoteEntity>)
 
+internal fun inspirationFilter(enabled: Boolean): Boolean? = enabled.takeIf { it }
+
 private data class NoteFilters(
     val category: String?,
     val keyword: String,
@@ -184,7 +186,7 @@ class HomeViewModel @Inject constructor(
                     filters.category,
                     null,
                     filters.keyword,
-                    filters.inspiration,
+                    inspirationFilter(filters.inspiration),
                     filters.lifecycleStatus,
                     filters.hasOpenTodo
                 )

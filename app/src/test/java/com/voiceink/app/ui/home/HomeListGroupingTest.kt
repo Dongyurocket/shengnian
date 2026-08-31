@@ -3,6 +3,7 @@ package com.voiceink.app.ui.home
 import com.voiceink.app.data.local.dao.NoteLinkPair
 import com.voiceink.app.data.local.entity.NoteEntity
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -53,6 +54,12 @@ class HomeListGroupingTest {
 
         assertEquals(listOf("文件夹 · 产品", "文件夹 · 阅读", "文件夹 · 未分类"), sections.map { it.label })
         assertTrue(sections.all { it.notes.isNotEmpty() })
+    }
+
+    @Test
+    fun allNotesDoesNotFilterOutInspirationNotes() {
+        assertNull(inspirationFilter(false))
+        assertEquals(true, inspirationFilter(true))
     }
 
     @Test
