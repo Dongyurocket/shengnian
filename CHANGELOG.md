@@ -2,6 +2,15 @@
 
 本项目遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## [0.1.1] - 2026-08-31
+
+### 新增
+- 应用图标：钢笔尖 + 紫罗兰星芒（设计稿品牌色系），Adaptive Icon 前景/背景分层 + 各密度 legacy 位图
+
+### 修复
+- Base URL 规范化：用户填写自带 `/v1` 后缀的地址（如硅基流动）时不再拼出 `/v1/v1/…`（真实联调发现）
+- release lint：备份规则补 include 前置、移除 WorkManager 默认初始化器（配合 Hilt 按需初始化）
+
 ## [0.1.0] - 2026-08-31
 
 首个公开版本（MVP）。

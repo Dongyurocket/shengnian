@@ -1,5 +1,7 @@
 # 声念
 
+<p align="center"><img src="generated-images/logo-v1-nib.png" width="160" alt="声念 Logo"></p>
+
 > 声落成章，念起成行。
 
 一款 Android 原生的 **AI 灵感笔记与智能待办**应用：把「记录」做成最短路径，把「整理」交给 AI。
