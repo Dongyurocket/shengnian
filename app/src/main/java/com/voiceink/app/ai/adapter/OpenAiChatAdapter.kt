@@ -1,0 +1,107 @@
+package com.voiceink.app.ai.adapter
+
+import com.voiceink.app.ai.LlmEndpoint
+import com.voiceink.app.ai.LlmProtocol
+import com.voiceink.app.ai.LlmRequest
+import com.voiceink.app.ai.LlmResult
+import com.voiceink.app.ai.StopReason
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.intOrNull
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.put
+import kotlinx.serialization.json.putJsonArray
+import kotlinx.serialization.json.putJsonObject
+import okhttp3.OkHttpClient
+import javax.inject.Inject
+
+/**
+ * OpenAI Chat Completions（§7.3）。
+ * 兼容策略：400 且报 max_completion_tokens → 换字段重试一次；
+ * 400 且报 response_format 不支持 → 去掉该字段重试（最终由 JsonExtractor 兜底）。
+ */
+class OpenAiChatAdapter @Inject constructor(
+    client: OkHttpClient,
+    json: Json
+) : AbstractLlmAdapter(client, json) {
+
+    override val protocol = LlmProtocol.OPENAI_CHAT
+
+    override suspend fun complete(endpoint: LlmEndpoint, request: LlmRequest): LlmResult {
+        val url = endpoint.baseUrl.trimEnd('/') + "/v1/chat/completions"
+        val headers = mapOf(
+            "Authorization" to "Bearer ${endpoint.apiKey}",
+            "Content-Type" to "application/json"
+        )
+
+        var useCompletionTokens = false
+        var useResponseFormat = true
+
+        repeat(3) { attempt ->
+            val body = buildBody(endpoint, request, useCompletionTokens, useResponseFormat)
+            try {
+                return parse(post(url, headers, body))
+            } catch (e: LlmException) {
+                val msg = e.message.orEmpty()
+                when {
+                    e.httpCode == 400 && !useCompletionTokens &&
+                        msg.contains("max_completion_tokens") ->
+                        useCompletionTokens = true
+
+                    e.httpCode == 400 && useResponseFormat &&
+                        (msg.contains("response_format") || msg.contains("json_object")) ->
+                        useResponseFormat = false
+
+                    else -> throw e
+                }
+            }
+        }
+        error("unreachable")
+    }
+
+    private fun buildBody(
+        endpoint: LlmEndpoint,
+        request: LlmRequest,
+        useCompletionTokens: Boolean,
+        useResponseFormat: Boolean
+    ): JsonObject = buildJsonObject {
+        put("model", endpoint.model)
+        putJsonArray("messages") {
+            add(kotlinx.serialization.json.buildJsonObject {
+                put("role", "system"); put("content", request.system)
+            })
+            add(kotlinx.serialization.json.buildJsonObject {
+                put("role", "user"); put("content", request.user)
+            })
+        }
+        if (useResponseFormat) {
+            putJsonObject("response_format") { put("type", "json_object") }
+        }
+        put("temperature", request.temperature)
+        if (useCompletionTokens) put("max_completion_tokens", request.maxTokens)
+        else put("max_tokens", request.maxTokens)
+    }
+
+    private fun parse(resp: JsonObject): LlmResult {
+        val choice = resp["choices"]?.jsonArray?.firstOrNull()?.jsonObject
+            ?: throw LlmException(-1, "响应缺少 choices: ${resp.toString().take(300)}", false)
+        val content = choice["message"]?.jsonObject?.get("content")?.jsonPrimitive?.content
+            ?: throw LlmException(-1, "choices[0].message.content 缺失", false)
+        val finish = choice["finish_reason"]?.jsonPrimitive?.contentOrNull
+        return LlmResult(
+            text = content,
+            stopReason = if (finish == "length") StopReason.MAX_TOKENS else StopReason.COMPLETE,
+            usageTokens = resp["usage"]?.jsonObject?.get("total_tokens")?.jsonPrimitive?.intOrNull
+        )
+    }
+
+    override fun parseErrorMessage(body: String): String =
+        runCatching {
+            json.parseToJsonElement(body).jsonObject["error"]?.jsonObject
+                ?.get("message")?.jsonPrimitive?.content
+        }.getOrNull() ?: super.parseErrorMessage(body)
+}

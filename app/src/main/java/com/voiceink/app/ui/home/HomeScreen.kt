@@ -266,7 +266,11 @@ private fun NoteCard(note: NoteEntity, onClick: () -> Unit) {
                         .background(Accent12)
                         .padding(horizontal = 9.dp)
                 ) {
-                    Text("整理中", style = VoiceInkTextStyles.Chip, color = Accent)
+                    Text(
+                        if (note.status == NoteStatus.AI_FAILED) "整理失败" else "整理中",
+                        style = VoiceInkTextStyles.Chip,
+                        color = Accent
+                    )
                 }
             }
         }

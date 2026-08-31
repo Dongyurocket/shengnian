@@ -27,4 +27,24 @@ interface NoteDao {
 
     @Query("SELECT DISTINCT category FROM notes WHERE category IS NOT NULL ORDER BY category")
     fun observeCategories(): Flow<List<String>>
+
+    @Query("UPDATE notes SET status = 'AI_FAILED', updatedAt = :now WHERE id = :id")
+    suspend fun markFailed(id: Long, now: Long = System.currentTimeMillis())
+
+    @Query("""UPDATE notes SET title = :title, content = :content, category = :category,
+        type = :type, mood = :mood, summary = :summary,
+        status = 'READY', updatedAt = :now WHERE id = :id""")
+    suspend fun applyOrganization(
+        id: Long,
+        title: String,
+        content: String,
+        category: String?,
+        type: String?,
+        mood: String?,
+        summary: String?,
+        now: Long = System.currentTimeMillis()
+    )
+
+    @Query("DELETE FROM notes WHERE id = :id")
+    suspend fun deleteById(id: Long)
 }

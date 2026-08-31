@@ -14,6 +14,10 @@ object TimeUtils {
 
     fun timeOfDay(ts: Long): String = timeFormat.format(Date(ts))
 
+    /** 解析 AI 输出的 "yyyy-MM-dd HH:mm" 为 epoch millis；解析失败返回 null */
+    fun parseDateTime(s: String): Long? =
+        runCatching { fullFormat.parse(s.trim())?.time }.getOrNull()
+
     /** 笔记流分组标签：今天 / 昨天 / 更早 */
     fun dayLabel(ts: Long, now: Long = System.currentTimeMillis()): String {
         val cal = Calendar.getInstance()
