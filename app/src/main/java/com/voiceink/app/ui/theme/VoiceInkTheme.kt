@@ -1,6 +1,5 @@
 package com.voiceink.app.ui.theme
 
-import androidx.compose.foundation.isDarkTheme
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Shapes
@@ -40,7 +39,6 @@ private val VoiceInkShapes = Shapes(
 @Composable
 fun VoiceInkTheme(content: @Composable () -> Unit) {
     // 设计稿只有亮色基调；深色模式暂不单独设计
-    isDarkTheme()
     MaterialTheme(
         colorScheme = VoiceInkColors,
         typography = VoiceInkTypography,
