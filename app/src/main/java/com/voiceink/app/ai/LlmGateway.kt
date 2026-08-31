@@ -36,4 +36,31 @@ class LlmGateway @Inject constructor(
         }
         throw lastError ?: error("unreachable")
     }
+
+    /** 设置页「测试连接」（§6.3）：用表单中的端点（可能未保存）发一次最小请求 */
+    suspend fun testEndpoint(endpoint: LlmEndpoint): String {
+        if (endpoint.baseUrl.isBlank()) return "请填写 Base URL"
+        if (endpoint.model.isBlank()) return "请填写模型名"
+        return try {
+            val adapter = factory.create(endpoint.protocol)
+            val r = adapter.complete(
+                endpoint,
+                LlmRequest(
+                    system = "你只输出 JSON。",
+                    user = "输出 {\"ok\":true}",
+                    jsonSchemaName = "intent",
+                    maxTokens = 64
+                )
+            )
+            if (com.voiceink.app.ai.prompt.JsonExtractor.firstJsonObject(r.text) != null) {
+                "连接成功"
+            } else {
+                "已连通，但响应非 JSON（将由兜底解析处理）"
+            }
+        } catch (e: LlmException) {
+            "失败（HTTP ${e.httpCode}）：${e.message?.take(80)}"
+        } catch (e: Exception) {
+            "失败：${e.message?.take(80)}"
+        }
+    }
 }

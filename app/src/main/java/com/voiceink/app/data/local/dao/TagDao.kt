@@ -11,6 +11,7 @@ import kotlinx.coroutines.flow.Flow
 
 data class NoteSharedCount(val noteId: Long, val shared: Int)
 data class NoteTagTotal(val noteId: Long, val total: Int)
+data class TagCount(val tag: String, val cnt: Int)
 
 @Dao
 interface TagDao {
@@ -43,6 +44,14 @@ interface TagDao {
 
     @Query("SELECT noteId, COUNT(*) AS total FROM note_tags WHERE noteId IN (:ids) GROUP BY noteId")
     suspend fun tagCounts(ids: List<Long>): List<NoteTagTotal>
+
+    @Query("""
+        SELECT nt.tag AS tag, COUNT(*) AS cnt FROM note_tags nt
+        JOIN notes n ON n.id = nt.noteId
+        WHERE n.createdAt > :since
+        GROUP BY nt.tag ORDER BY cnt DESC LIMIT 10
+    """)
+    fun observeTopTags(since: Long): Flow<List<TagCount>>
 }
 
 @Dao

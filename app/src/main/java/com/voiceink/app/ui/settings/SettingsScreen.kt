@@ -1,5 +1,6 @@
 package com.voiceink.app.ui.settings
 
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -137,6 +138,24 @@ fun SettingsScreen(
                 label = "模型",
                 placeholder = "gpt-4o-mini / deepseek-chat / claude-sonnet-4-5"
             )
+            Spacer(Modifier.height(12.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .height(32.dp)
+                        .clip(RoundedCornerShape(VoiceInkRadius.Chip))
+                        .background(Accent)
+                        .clickable { vm.testLlm() }
+                        .padding(horizontal = 14.dp)
+                ) {
+                    Text("测试连接", color = Color.White, fontSize = 11.5.sp)
+                }
+                ui.llmTestResult?.let {
+                    Spacer(Modifier.width(10.dp))
+                    Text(it, fontSize = 10.5.sp, color = Muted)
+                }
+            }
         }
 
         Spacer(Modifier.height(14.dp))
@@ -260,6 +279,28 @@ fun SettingsScreen(
                         color = if (ui.rebuilding) Faint else Ink,
                         fontSize = 11.5.sp
                     )
+                }
+            }
+            Spacer(Modifier.height(12.dp))
+            // 数据导出（§6.4）：Markdown + JSON 到用户选择目录
+            val exportLauncher = rememberLauncherForActivityResult(
+                androidx.activity.result.contract.ActivityResultContracts.OpenDocumentTree()
+            ) { uri -> uri?.let { vm.exportTo(it) } }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .height(32.dp)
+                        .clip(RoundedCornerShape(VoiceInkRadius.Chip))
+                        .background(Paper2)
+                        .clickable { exportLauncher.launch(null) }
+                        .padding(horizontal = 14.dp)
+                ) {
+                    Text("导出备份（Markdown + JSON）", color = Ink, fontSize = 11.5.sp)
+                }
+                ui.exportResult?.let {
+                    Spacer(Modifier.width(10.dp))
+                    Text(it, fontSize = 10.5.sp, color = Muted)
                 }
             }
         }

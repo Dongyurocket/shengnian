@@ -20,6 +20,9 @@ object TimeUtils {
 
     fun formatDateTime(ts: Long): String = fullFormat.format(Date(ts))
 
+    private val fileFormat = SimpleDateFormat("yyyyMMdd-HHmm", Locale.getDefault())
+    fun formatForFile(ts: Long): String = fileFormat.format(Date(ts))
+
     /** 待办页头部："8 月 30 日 · 周六" */
     fun headerDate(now: Long = System.currentTimeMillis()): String {
         val cal = Calendar.getInstance().apply { timeInMillis = now }

@@ -50,6 +50,11 @@ interface NoteDao {
     @Query("SELECT id FROM notes WHERE status = 'READY' AND createdAt > :since")
     suspend fun readyIdsSince(since: Long): List<Long>
 
+    // ---- 洞察页聚合（§11.4，纯 Room） ----
+
+    @Query("SELECT createdAt FROM notes")
+    fun observeAllCreatedAt(): Flow<List<Long>>
+
     @Query("SELECT DISTINCT category FROM notes WHERE category IS NOT NULL ORDER BY category")
     fun observeCategories(): Flow<List<String>>
 

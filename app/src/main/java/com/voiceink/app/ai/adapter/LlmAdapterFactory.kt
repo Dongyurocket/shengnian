@@ -14,7 +14,7 @@ class LlmAdapterFactory @Inject constructor(
 ) {
     fun create(protocol: LlmProtocol): LlmAdapter = when (protocol) {
         LlmProtocol.OPENAI_CHAT -> OpenAiChatAdapter(client, json)
-        LlmProtocol.OPENAI_RESPONSES -> OpenAiChatAdapter(client, json) // TODO(阶段 6): OpenAiResponsesAdapter
+        LlmProtocol.OPENAI_RESPONSES -> OpenAiResponsesAdapter(client, json)
         LlmProtocol.ANTHROPIC_MESSAGES -> AnthropicMessagesAdapter(client, json)
     }
 }

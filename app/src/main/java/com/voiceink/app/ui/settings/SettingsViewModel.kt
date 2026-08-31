@@ -1,15 +1,19 @@
 package com.voiceink.app.ui.settings
 
 import android.content.Context
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.workDataOf
 import com.voiceink.app.ai.EmbeddingEndpoint
+import com.voiceink.app.ai.LlmEndpoint
+import com.voiceink.app.ai.LlmGateway
 import com.voiceink.app.ai.LlmProtocol
 import com.voiceink.app.ai.embedding.EmbeddingClient
 import com.voiceink.app.ai.pipeline.LinkScanWorker
+import com.voiceink.app.data.export.MarkdownExporter
 import com.voiceink.app.data.repo.SettingsRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -24,6 +28,8 @@ import javax.inject.Inject
 class SettingsViewModel @Inject constructor(
     private val repo: SettingsRepository,
     private val embeddingClient: EmbeddingClient,
+    private val gateway: LlmGateway,
+    private val exporter: MarkdownExporter,
     @ApplicationContext private val context: Context
 ) : ViewModel() {
 
@@ -32,6 +38,7 @@ class SettingsViewModel @Inject constructor(
         val baseUrl: String = "",
         val model: String = "",
         val apiKey: String = "",
+        val llmTestResult: String? = null,
         val embedEnabled: Boolean = false,
         val embedBaseUrl: String = "",
         val embedModel: String = "",
@@ -39,6 +46,7 @@ class SettingsViewModel @Inject constructor(
         val embedTestResult: String? = null,
         val linkEnabled: Boolean = true,
         val rebuilding: Boolean = false,
+        val exportResult: String? = null,
         val openDirectCapture: Boolean = false,
         val remindLead: String = "5",
         val saved: Boolean = false
@@ -68,7 +76,33 @@ class SettingsViewModel @Inject constructor(
     }
 
     fun update(block: (UiState) -> UiState) =
-        _ui.update { block(it).copy(saved = false, embedTestResult = null) }
+        _ui.update { block(it).copy(saved = false, embedTestResult = null, llmTestResult = null) }
+
+    /** LLM 测试连接（§6.3）：用表单当前值直接测，不要求先保存 */
+    fun testLlm() {
+        val s = _ui.value
+        viewModelScope.launch {
+            _ui.update { it.copy(llmTestResult = "测试中…") }
+            val result = gateway.testEndpoint(LlmEndpoint(s.baseUrl, s.apiKey, s.model, s.protocol))
+            _ui.update { it.copy(llmTestResult = result) }
+        }
+    }
+
+    /** 导出备份到用户选择的目录（§6.4） */
+    fun exportTo(uri: Uri) {
+        viewModelScope.launch {
+            _ui.update { it.copy(exportResult = "导出中…") }
+            val result = runCatching { exporter.exportAll(uri) }
+            _ui.update {
+                it.copy(
+                    exportResult = result.fold(
+                        onSuccess = { n -> "已导出 $n 条笔记（Markdown + shengnian-backup.json）" },
+                        onFailure = { e -> "导出失败：${e.message?.take(60)}" }
+                    )
+                )
+            }
+        }
+    }
 
     fun save() {
         val s = _ui.value
