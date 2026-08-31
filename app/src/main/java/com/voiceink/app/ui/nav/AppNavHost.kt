@@ -41,6 +41,8 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
+import androidx.navigation.navDeepLink
 import com.voiceink.app.ui.capture.CaptureScreen
 import com.voiceink.app.ui.home.HomeScreen
 import com.voiceink.app.ui.insights.InsightsScreen
@@ -102,8 +104,22 @@ fun AppNavHost() {
                 }
                 composable(Routes.Todo) { TodoScreen() }
                 composable(Routes.Insights) { InsightsScreen() }
-                composable(Routes.Capture) {
-                    CaptureScreen(onDone = { navController.popBackStack() })
+                composable(
+                    route = Routes.Capture + "?mode={mode}",
+                    arguments = listOf(
+                        navArgument("mode") {
+                            nullable = true
+                            defaultValue = null
+                        }
+                    ),
+                    deepLinks = listOf(
+                        navDeepLink { uriPattern = "voiceink://capture?mode={mode}" }
+                    )
+                ) { entry ->
+                    CaptureScreen(
+                        mode = entry.arguments?.getString("mode"),
+                        onDone = { navController.popBackStack() }
+                    )
                 }
                 composable(Routes.Settings) {
                     SettingsScreen(onBack = { navController.popBackStack() })

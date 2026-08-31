@@ -18,6 +18,7 @@ data class NoteEntity(
     val summary: String? = null,
     val status: NoteStatus = NoteStatus.PENDING_AI,
     val source: String = "app",             // app / share / shortcut
+    val intentHint: String? = null,         // 入口预设意图（如快捷方式"新建待办"），AI 分流时参考
     val createdAt: Long = System.currentTimeMillis(),
     val updatedAt: Long = System.currentTimeMillis()
 )

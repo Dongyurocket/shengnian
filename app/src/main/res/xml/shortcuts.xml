@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:shortcutId="new_note"
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_note"
+        android:shortcutShortLabel="@string/sc_new_note"
+        android:shortcutLongLabel="@string/sc_new_note">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:data="voiceink://capture"
+            android:targetPackage="com.voiceink.app"
+            android:targetClass="com.voiceink.app.MainActivity" />
+    </shortcut>
+    <shortcut
+        android:shortcutId="new_todo"
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_todo"
+        android:shortcutShortLabel="@string/sc_new_todo"
+        android:shortcutLongLabel="@string/sc_new_todo">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:data="voiceink://capture?mode=todo"
+            android:targetPackage="com.voiceink.app"
+            android:targetClass="com.voiceink.app.MainActivity" />
+    </shortcut>
+</shortcuts>

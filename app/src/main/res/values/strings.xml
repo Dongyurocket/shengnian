@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">声念</string>
+    <string name="sc_new_note">新建灵感</string>
+    <string name="sc_new_todo">新建待办</string>
 </resources>

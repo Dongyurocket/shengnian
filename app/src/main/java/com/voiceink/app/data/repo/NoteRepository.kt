@@ -11,8 +11,8 @@ class NoteRepository @Inject constructor(
     private val noteDao: NoteDao
 ) {
     /** 原始输入立即落库，status=PENDING_AI，保证 AI 故障时数据不丢 */
-    suspend fun insertRaw(content: String, source: String = "app"): Long =
-        noteDao.insert(NoteEntity(content = content, source = source))
+    suspend fun insertRaw(content: String, source: String = "app", intentHint: String? = null): Long =
+        noteDao.insert(NoteEntity(content = content, source = source, intentHint = intentHint))
 
     fun observe(category: String?): Flow<List<NoteEntity>> = noteDao.observeFiltered(category)
 
