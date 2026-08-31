@@ -57,6 +57,18 @@ object JsonExtractor {
         }
     }
 
+    /** 解析关联复核输出：{"related":[{"id":17,"reason":"…"}]} → List<Pair<id, reason>> */
+    fun extractLinks(raw: String): List<Pair<Long, String>> {
+        val obj = firstJsonObject(raw) ?: return emptyList()
+        val arr = obj["related"]?.jsonArray ?: return emptyList()
+        return arr.mapNotNull { item ->
+            val o = runCatching { item.jsonObject }.getOrNull() ?: return@mapNotNull null
+            val id = o["id"]?.jsonPrimitive?.contentOrNull?.toLongOrNull() ?: return@mapNotNull null
+            val reason = o["reason"]?.jsonPrimitive?.contentOrNull.orEmpty()
+            id to reason
+        }
+    }
+
     /** 从任意文本中抠出第一个完整 JSON 对象（处理 ```json 包裹、前后废话、预填缺 '{'） */
     fun firstJsonObject(raw: String): JsonObject? {
         var s = raw.trim()

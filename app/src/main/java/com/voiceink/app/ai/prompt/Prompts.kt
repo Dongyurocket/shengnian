@@ -36,12 +36,30 @@ object Prompts {
 时间词（明天/下周三/下班前）一律以用户提供的“当前时间”为基准换算成绝对时间。
 """.trimIndent()
 
-    /** 关联复核 Prompt 在阶段 5 加入（LINK_JUDGE） */
+    /** 关联复核（§9.1③）：宁缺毋滥 */
+    val LINK_JUDGE = """
+你在做个人笔记的语义关联复核。给定一条新笔记（标题+摘要）和若干候选笔记（id/标题/摘要），
+判断哪些候选与新笔记存在真实的语义关联（同一主题的延续、同一项目、可互相印证的想法）。
+只输出 JSON：{"related":[{"id":数字,"reason":"一句话说明关联点"}]}，无关联输出 {"related":[]}。
+宁缺毋滥：只有确有把握关联时才输出。
+""".trimIndent()
 
     /** 供 OpenAI Responses json_schema strict 使用（阶段 6） */
     fun schemaFor(name: String): JsonObject = when (name) {
         "intent" -> INTENT_JSON_SCHEMA
+        "link" -> LINK_JSON_SCHEMA
         else -> JsonObject(emptyMap())
+    }
+
+    private val LINK_JSON_SCHEMA = buildJsonObject {
+        put("type", "object")
+        putJsonObject("properties") {
+            putJsonObject("related") {
+                put("type", "array")
+            }
+        }
+        putJsonArray("required") { add(kotlinx.serialization.json.JsonPrimitive("related")) }
+        put("additionalProperties", true)
     }
 
     private val INTENT_JSON_SCHEMA = buildJsonObject {

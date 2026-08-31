@@ -4,6 +4,8 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.voiceink.app.ai.pipeline.AiPipeline
+import com.voiceink.app.data.local.dao.LinkDao
+import com.voiceink.app.data.local.dao.RelatedNote
 import com.voiceink.app.data.local.dao.TagDao
 import com.voiceink.app.data.local.entity.NoteEntity
 import com.voiceink.app.data.local.entity.TodoEntity
@@ -22,6 +24,7 @@ class NoteDetailViewModel @Inject constructor(
     private val notes: NoteRepository,
     todos: TodoRepository,
     private val tagDao: TagDao,
+    private val linkDao: LinkDao,
     private val pipeline: AiPipeline
 ) : ViewModel() {
 
@@ -36,6 +39,15 @@ class NoteDetailViewModel @Inject constructor(
     /** AI 从该笔记提炼出的待办（§11.3） */
     val extractedTodos: StateFlow<List<TodoEntity>> = todos.observeForNote(noteId)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    /** 相关笔记（§9：双向链接，按综合分排序） */
+    val related: StateFlow<List<RelatedNote>> = linkDao.observeRelated(noteId)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    /** 手动解除关联（双向删除） */
+    fun unlink(otherId: Long) {
+        viewModelScope.launch { linkDao.deleteBidirectional(noteId, otherId) }
+    }
 
     fun retry() {
         viewModelScope.launch {

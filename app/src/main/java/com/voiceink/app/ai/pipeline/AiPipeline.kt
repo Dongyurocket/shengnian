@@ -35,6 +35,7 @@ class AiPipeline @Inject constructor(
     private val gateway: LlmGateway,
     private val notes: NoteRepository,
     private val todos: TodoRepository,
+    private val linkDiscovery: LinkDiscovery,
     private val reminder: ReminderScheduler
 ) {
     sealed interface Outcome {
@@ -113,7 +114,8 @@ class AiPipeline @Inject constructor(
                         sourceNoteId = noteId
                     )
                 }
-                // 关联发现 LinkDiscovery 在阶段 5 接入
+                // 步骤 2：关联发现（§9，内部检查开关，失败不影响主流程）
+                runCatching { linkDiscovery.discoverFor(noteId) }
                 Outcome.Done
             }
             ParsedIntent.Unparseable -> {

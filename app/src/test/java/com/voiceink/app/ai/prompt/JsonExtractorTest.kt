@@ -81,4 +81,12 @@ class JsonExtractorTest {
         assertTrue(r is ParsedIntent.Note)
         assertEquals(listOf("关掉实验分支", "回复授权邮件"), (r as ParsedIntent.Note).todos)
     }
+
+    @Test
+    fun `关联复核输出解析`() {
+        val r = JsonExtractor.extractLinks("""{"related":[{"id":17,"reason":"同一项目"},{"id":9}]}""")
+        assertEquals(listOf(17L to "同一项目", 9L to ""), r)
+        assertEquals(emptyList<Pair<Long, String>>(), JsonExtractor.extractLinks("""{"related":[]}"""))
+        assertEquals(emptyList<Pair<Long, String>>(), JsonExtractor.extractLinks("不是 JSON"))
+    }
 }

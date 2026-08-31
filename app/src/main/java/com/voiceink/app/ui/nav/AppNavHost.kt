@@ -129,7 +129,10 @@ fun AppNavHost() {
                     route = "detail/{noteId}",
                     arguments = listOf(navArgument("noteId") { type = NavType.LongType })
                 ) {
-                    NoteDetailScreen(onBack = { navController.popBackStack() })
+                    NoteDetailScreen(
+                        onBack = { navController.popBackStack() },
+                        onOpenNote = { id -> navController.navigate("detail/$id") }
+                    )
                 }
                 composable(Routes.Settings) {
                     SettingsScreen(onBack = { navController.popBackStack() })

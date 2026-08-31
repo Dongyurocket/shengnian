@@ -9,6 +9,9 @@ import com.voiceink.app.data.local.entity.NoteTagCrossRef
 import com.voiceink.app.data.local.entity.TagEntity
 import kotlinx.coroutines.flow.Flow
 
+data class NoteSharedCount(val noteId: Long, val shared: Int)
+data class NoteTagTotal(val noteId: Long, val total: Int)
+
 @Dao
 interface TagDao {
     @Insert(onConflict = OnConflictStrategy.IGNORE)
@@ -25,6 +28,21 @@ interface TagDao {
 
     @Query("SELECT tag FROM note_tags WHERE noteId = :noteId")
     fun observeTags(noteId: Long): Flow<List<String>>
+
+    /** 与指定笔记共享标签的其它笔记及其共享标签数（§9.1 候选召回 b 路） */
+    @Query("""
+        SELECT noteId, COUNT(*) AS shared FROM note_tags
+        WHERE tag IN (SELECT tag FROM note_tags WHERE noteId = :noteId)
+          AND noteId != :noteId
+        GROUP BY noteId
+    """)
+    suspend fun sharedTagCounts(noteId: Long): List<NoteSharedCount>
+
+    @Query("SELECT COUNT(*) FROM note_tags WHERE noteId = :noteId")
+    suspend fun tagCount(noteId: Long): Int
+
+    @Query("SELECT noteId, COUNT(*) AS total FROM note_tags WHERE noteId IN (:ids) GROUP BY noteId")
+    suspend fun tagCounts(ids: List<Long>): List<NoteTagTotal>
 }
 
 @Dao

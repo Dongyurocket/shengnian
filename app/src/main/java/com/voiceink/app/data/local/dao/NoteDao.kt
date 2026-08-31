@@ -7,6 +7,8 @@ import androidx.room.Update
 import com.voiceink.app.data.local.entity.NoteEntity
 import kotlinx.coroutines.flow.Flow
 
+data class NoteDigest(val id: Long, val title: String, val summary: String?)
+
 @Dao
 interface NoteDao {
     @Insert
@@ -41,6 +43,12 @@ interface NoteDao {
 
     @Query("UPDATE notes SET category = :category, updatedAt = :now WHERE id = :id")
     suspend fun updateCategory(id: Long, category: String?, now: Long = System.currentTimeMillis())
+
+    @Query("SELECT id, title, summary FROM notes WHERE status = 'READY' AND id != :excludeId")
+    suspend fun allDigests(excludeId: Long): List<NoteDigest>
+
+    @Query("SELECT id FROM notes WHERE status = 'READY' AND createdAt > :since")
+    suspend fun readyIdsSince(since: Long): List<Long>
 
     @Query("SELECT DISTINCT category FROM notes WHERE category IS NOT NULL ORDER BY category")
     fun observeCategories(): Flow<List<String>>

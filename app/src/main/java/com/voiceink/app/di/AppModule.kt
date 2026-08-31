@@ -5,6 +5,8 @@ import androidx.room.Room
 import com.voiceink.app.core.AppJson
 import com.voiceink.app.data.local.AppDatabase
 import com.voiceink.app.data.local.dao.CategoryDao
+import com.voiceink.app.data.local.dao.EmbeddingDao
+import com.voiceink.app.data.local.dao.LinkDao
 import com.voiceink.app.data.local.dao.NoteDao
 import com.voiceink.app.data.local.dao.TagDao
 import com.voiceink.app.data.local.dao.TodoDao
@@ -41,6 +43,12 @@ object AppModule {
 
     @Provides
     fun provideCategoryDao(db: AppDatabase): CategoryDao = db.categoryDao()
+
+    @Provides
+    fun provideLinkDao(db: AppDatabase): LinkDao = db.linkDao()
+
+    @Provides
+    fun provideEmbeddingDao(db: AppDatabase): EmbeddingDao = db.embeddingDao()
 
     @Provides
     @Singleton

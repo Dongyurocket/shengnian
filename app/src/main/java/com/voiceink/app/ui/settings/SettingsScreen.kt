@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -139,6 +140,72 @@ fun SettingsScreen(
         }
 
         Spacer(Modifier.height(14.dp))
+        // Embedding 独立配置（§9.4）：可折叠，默认关闭
+        SectionCard(title = "语义向量（Embedding）") {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text("启用语义关联", fontSize = 13.5.sp, color = Ink)
+                    Text(
+                        "未配置时关联发现使用标签 + AI 分析模式",
+                        fontSize = 10.5.sp, color = Faint
+                    )
+                }
+                Switch(
+                    checked = ui.embedEnabled,
+                    onCheckedChange = { v -> vm.update { it.copy(embedEnabled = v) } },
+                    colors = SwitchDefaults.colors(checkedTrackColor = Accent)
+                )
+            }
+            if (ui.embedEnabled) {
+                Spacer(Modifier.height(12.dp))
+                FormField(
+                    value = ui.embedBaseUrl,
+                    onValueChange = { v -> vm.update { it.copy(embedBaseUrl = v) } },
+                    label = "Base URL",
+                    placeholder = "https://api.siliconflow.cn 或 http://192.168.1.5:11434"
+                )
+                Spacer(Modifier.height(10.dp))
+                FormField(
+                    value = ui.embedApiKey,
+                    onValueChange = { v -> vm.update { it.copy(embedApiKey = v) } },
+                    label = "API Key",
+                    placeholder = "同样经 Keystore 加密存储",
+                    secret = true
+                )
+                Spacer(Modifier.height(10.dp))
+                FormField(
+                    value = ui.embedModel,
+                    onValueChange = { v -> vm.update { it.copy(embedModel = v) } },
+                    label = "模型",
+                    placeholder = "text-embedding-3-small / bge-m3 / nomic-embed-text"
+                )
+                Spacer(Modifier.height(12.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier
+                            .height(32.dp)
+                            .clip(RoundedCornerShape(VoiceInkRadius.Chip))
+                            .background(Accent)
+                            .clickable { vm.testEmbedding() }
+                            .padding(horizontal = 14.dp)
+                    ) {
+                        Text("测试连接", color = Color.White, fontSize = 11.5.sp)
+                    }
+                    ui.embedTestResult?.let {
+                        Spacer(Modifier.width(10.dp))
+                        Text(it, fontSize = 10.5.sp, color = Muted)
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
+                Text("更换模型后需「重建知识网络」以重算向量", fontSize = 10.5.sp, color = Faint)
+            }
+        }
+
+        Spacer(Modifier.height(14.dp))
         SectionCard(title = "通用") {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
@@ -155,6 +222,21 @@ fun SettingsScreen(
                 )
             }
             Spacer(Modifier.height(12.dp))
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text("笔记关联发现", fontSize = 13.5.sp, color = Ink)
+                    Text("新笔记自动建立语义双向链接", fontSize = 10.5.sp, color = Faint)
+                }
+                Switch(
+                    checked = ui.linkEnabled,
+                    onCheckedChange = { v -> vm.update { it.copy(linkEnabled = v) } },
+                    colors = SwitchDefaults.colors(checkedTrackColor = Accent)
+                )
+            }
+            Spacer(Modifier.height(12.dp))
             FormField(
                 value = ui.remindLead,
                 onValueChange = { v -> vm.update { it.copy(remindLead = v.filter(Char::isDigit)) } },
@@ -162,6 +244,24 @@ fun SettingsScreen(
                 placeholder = "5",
                 number = true
             )
+            Spacer(Modifier.height(14.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .height(32.dp)
+                        .clip(RoundedCornerShape(VoiceInkRadius.Chip))
+                        .background(Paper2)
+                        .clickable(enabled = !ui.rebuilding) { vm.rebuildNetwork() }
+                        .padding(horizontal = 14.dp)
+                ) {
+                    Text(
+                        if (ui.rebuilding) "已加入后台重建队列" else "重建知识网络",
+                        color = if (ui.rebuilding) Faint else Ink,
+                        fontSize = 11.5.sp
+                    )
+                }
+            }
         }
 
         Spacer(Modifier.height(18.dp))

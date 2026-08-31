@@ -70,11 +70,13 @@ import com.voiceink.app.ui.theme.VoiceInkTextStyles
 @Composable
 fun NoteDetailScreen(
     onBack: () -> Unit,
+    onOpenNote: (Long) -> Unit = {},
     vm: NoteDetailViewModel = hiltViewModel()
 ) {
     val note by vm.note.collectAsStateWithLifecycle()
     val tags by vm.tags.collectAsStateWithLifecycle()
     val todos by vm.extractedTodos.collectAsStateWithLifecycle()
+    val related by vm.related.collectAsStateWithLifecycle()
     var editingCategory by remember { mutableStateOf(false) }
 
     val n = note
@@ -281,6 +283,15 @@ fun NoteDetailScreen(
                         }
                     }
                 }
+            }
+
+            // 相关笔记（§9/§11.4：横向卡片，可解除关联）
+            if (related.isNotEmpty()) {
+                RelatedNotesSection(
+                    related = related,
+                    onOpen = onOpenNote,
+                    onUnlink = { vm.unlink(it) }
+                )
             }
 
             Spacer(Modifier.height(80.dp))

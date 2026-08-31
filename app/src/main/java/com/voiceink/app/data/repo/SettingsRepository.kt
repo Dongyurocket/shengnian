@@ -45,6 +45,8 @@ class SettingsRepository @Inject constructor(
         val EMBED_MODEL = stringPreferencesKey("embed_model")
         val DIRECT_CAPTURE = booleanPreferencesKey("open_direct_capture")
         val REMIND_LEAD = stringPreferencesKey("remind_lead_minutes")
+        val LINK_ENABLED = booleanPreferencesKey("link_discovery_enabled")
+        val LAST_LINK_SCAN = stringPreferencesKey("last_link_scan")
     }
 
     val llmConfig: Flow<LlmConfig> = context.settingsStore.data.map { p ->
@@ -124,5 +126,23 @@ class SettingsRepository @Inject constructor(
 
     suspend fun setRemindLeadMinutes(value: Int) {
         context.settingsStore.edit { it[Keys.REMIND_LEAD] = value.coerceIn(0, 24 * 60).toString() }
+    }
+
+    // ---- 关联发现 ----
+
+    val linkDiscoveryEnabled: Flow<Boolean> =
+        context.settingsStore.data.map { it[Keys.LINK_ENABLED] ?: true }
+
+    suspend fun isLinkDiscoveryEnabled(): Boolean = linkDiscoveryEnabled.first()
+
+    suspend fun setLinkDiscoveryEnabled(value: Boolean) {
+        context.settingsStore.edit { it[Keys.LINK_ENABLED] = value }
+    }
+
+    suspend fun lastLinkScan(): Long =
+        context.settingsStore.data.first()[Keys.LAST_LINK_SCAN]?.toLongOrNull() ?: 0L
+
+    suspend fun setLastLinkScan(ts: Long) {
+        context.settingsStore.edit { it[Keys.LAST_LINK_SCAN] = ts.toString() }
     }
 }
