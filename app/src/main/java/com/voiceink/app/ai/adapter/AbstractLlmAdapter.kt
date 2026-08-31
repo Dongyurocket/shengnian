@@ -46,5 +46,11 @@ abstract class AbstractLlmAdapter(
 
     protected fun retriable(code: Int) = code == 429 || code >= 500
 
+    /** 拼接 API 地址：用户填的 Base URL 可能自带 /v1（如硅基流动），避免拼成 /v1/v1/… */
+    protected fun apiUrl(baseUrl: String, path: String): String {
+        val b = baseUrl.trimEnd('/')
+        return if (b.endsWith("/v1")) b + path else b + "/v1" + path
+    }
+
     protected open fun parseErrorMessage(body: String): String = body.take(300)
 }

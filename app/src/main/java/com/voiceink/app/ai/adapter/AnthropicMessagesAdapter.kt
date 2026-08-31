@@ -33,7 +33,7 @@ class AnthropicMessagesAdapter @Inject constructor(
     override val protocol = LlmProtocol.ANTHROPIC_MESSAGES
 
     override suspend fun complete(endpoint: LlmEndpoint, request: LlmRequest): LlmResult {
-        val url = endpoint.baseUrl.trimEnd('/') + "/v1/messages"
+        val url = apiUrl(endpoint.baseUrl, "/messages")
         val body = buildJsonObject {
             put("model", endpoint.model)
             put("max_tokens", request.maxTokens)   // 必填

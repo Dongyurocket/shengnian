@@ -80,6 +80,20 @@ class OpenAiChatAdapterTest {
     }
 
     @Test
+    fun `baseUrl 自带 v1 时不重复拼接`() = runTest {
+        server.enqueue(
+            MockResponse().setBody(
+                """{"choices":[{"message":{"content":"{}"},"finish_reason":"stop"}]}"""
+            )
+        )
+        val ep = LlmEndpoint(
+            server.url("/v1").toString().trimEnd('/'), "k", "m", LlmProtocol.OPENAI_CHAT
+        )
+        adapter.complete(ep, LlmRequest("s", "u", "intent"))
+        assertEquals("/v1/chat/completions", server.takeRequest().path)
+    }
+
+    @Test
     fun `400 报 max_completion_tokens 时自动换字段重试`() = runTest {
         server.enqueue(
             MockResponse().setResponseCode(400)

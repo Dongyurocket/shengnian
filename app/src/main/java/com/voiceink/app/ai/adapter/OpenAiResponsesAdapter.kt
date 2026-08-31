@@ -35,7 +35,7 @@ class OpenAiResponsesAdapter @Inject constructor(
     override val protocol = LlmProtocol.OPENAI_RESPONSES
 
     override suspend fun complete(endpoint: LlmEndpoint, request: LlmRequest): LlmResult {
-        val url = endpoint.baseUrl.trimEnd('/') + "/v1/responses"
+        val url = apiUrl(endpoint.baseUrl, "/responses")
         val headers = mapOf(
             "Authorization" to "Bearer ${endpoint.apiKey}",
             "Content-Type" to "application/json"

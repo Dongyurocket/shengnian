@@ -32,7 +32,7 @@ class OpenAiChatAdapter @Inject constructor(
     override val protocol = LlmProtocol.OPENAI_CHAT
 
     override suspend fun complete(endpoint: LlmEndpoint, request: LlmRequest): LlmResult {
-        val url = endpoint.baseUrl.trimEnd('/') + "/v1/chat/completions"
+        val url = apiUrl(endpoint.baseUrl, "/chat/completions")
         val headers = mapOf(
             "Authorization" to "Bearer ${endpoint.apiKey}",
             "Content-Type" to "application/json"

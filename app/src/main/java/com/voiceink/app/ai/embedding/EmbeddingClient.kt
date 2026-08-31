@@ -48,7 +48,10 @@ class EmbeddingClient @Inject constructor(
                 put("input", text)
             }.toString()
             val req = Request.Builder()
-                .url(ep.baseUrl.trimEnd('/') + "/v1/embeddings")
+                .url(run {
+                    val b = ep.baseUrl.trimEnd('/')
+                    if (b.endsWith("/v1")) "$b/embeddings" else "$b/v1/embeddings"
+                })
                 .header("Authorization", "Bearer ${ep.apiKey}")
                 .post(payload.toRequestBody("application/json".toMediaType()))
                 .build()
