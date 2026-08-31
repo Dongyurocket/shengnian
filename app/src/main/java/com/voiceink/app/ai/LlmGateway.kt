@@ -49,13 +49,17 @@ class LlmGateway @Inject constructor(
                     system = "你只输出 JSON。",
                     user = "输出 {\"ok\":true}",
                     jsonSchemaName = "intent",
-                    maxTokens = 64
+                    // 推理模型会先消耗思考 token，512 比 64 更不容易造成空响应误判
+                    maxTokens = 512
                 )
             )
-            if (com.voiceink.app.ai.prompt.JsonExtractor.firstJsonObject(r.text) != null) {
-                "连接成功"
-            } else {
-                "已连通，但响应非 JSON（将由兜底解析处理）"
+            when {
+                r.text.isBlank() ->
+                    "已连通，但模型返回为空（推理模型可能把额度用于思考，建议换非推理模型或确认额度）"
+                com.voiceink.app.ai.prompt.JsonExtractor.firstJsonObject(r.text) != null ->
+                    "连接成功"
+                else ->
+                    "连接成功（响应非严格 JSON，将由兜底解析处理）"
             }
         } catch (e: LlmException) {
             "失败（HTTP ${e.httpCode}）：${e.message?.take(80)}"

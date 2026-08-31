@@ -85,7 +85,7 @@ class OpenAiResponsesAdapterTest {
     fun `400 报 json_schema 不支持时降级 json_object 重试`() = runTest {
         server.enqueue(
             MockResponse().setResponseCode(400)
-                .setBody("""{"error":{"message":"json_schema strict is not supported"}}""")
+                .setBody("""{"error":{"message":"Invalid json schema: one of type, ref"}}""")
         )
         server.enqueue(
             MockResponse().setBody("""{"status":"completed","output_text":"{}"}""")

@@ -2,6 +2,21 @@
 
 本项目遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## [0.2.0] - 2026-08-31
+
+### 新增
+- 设置页「检查更新」：查询 GitHub 最新 Release，展示版本号与更新日志
+- 发现 APK 附件时可用 DownloadManager 下载，下载完成后交给系统安装器；无附件时回退到发布页
+
+### 修复
+- Responses JSON Schema：修复 `tags` / `todos` 数组字段生成了非法空数组 schema，DeepSeek 等端点不再因 `Invalid json schema` 返回 HTTP 400
+- Responses 400 降级：兼容返回 `json schema`（空格）错误的中转端点，自动重试 `json_object`
+- 测试连接：推理模型测试额度由 64 提高到 512 token，并区分空响应、非严格 JSON 与真实连接失败
+- Android 24 通知兼容：通知渠道仅在 API 26+ 创建，统一使用 `NotificationCompat`
+
+### 工程
+- 单元测试增至 35 个，覆盖 JSON Schema 数组结构、GitHub Release 解析与更新版本比较
+
 ## [0.1.1] - 2026-08-31
 
 ### 新增

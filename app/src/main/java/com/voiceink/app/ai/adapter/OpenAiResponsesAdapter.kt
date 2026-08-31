@@ -46,10 +46,14 @@ class OpenAiResponsesAdapter @Inject constructor(
             try {
                 return parse(post(url, headers, body))
             } catch (e: LlmException) {
-                val msg = e.message.orEmpty()
-                if (e.httpCode == 400 && useJsonSchema &&
-                    (msg.contains("json_schema") || msg.contains("text.format") || msg.contains("format"))
-                ) {
+                val msg = e.message.orEmpty().lowercase()
+                val formatError = msg.contains("json_schema") ||
+                    msg.contains("json schema") ||
+                    msg.contains("text.format") ||
+                    msg.contains("response_format") ||
+                    msg.contains("schema")
+                // 仅对结构化输出格式错误降级，模型名等普通 400 不重复消耗请求
+                if (e.httpCode == 400 && useJsonSchema && formatError) {
                     useJsonSchema = false
                 } else {
                     throw e

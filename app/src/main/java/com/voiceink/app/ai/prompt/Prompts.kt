@@ -56,6 +56,7 @@ object Prompts {
         putJsonObject("properties") {
             putJsonObject("related") {
                 put("type", "array")
+                putJsonObject("items") { put("type", "object") }
             }
         }
         putJsonArray("required") { add(kotlinx.serialization.json.JsonPrimitive("related")) }
@@ -77,9 +78,15 @@ object Prompts {
             putJsonObject("category") { put("type", "string") }
             putJsonObject("type") { put("type", "string") }
             putJsonObject("mood") { put("type", "string") }
-            putJsonArray("tags") {}
+            putJsonObject("tags") {
+                put("type", "array")
+                putJsonObject("items") { put("type", "string") }
+            }
             putJsonObject("summary") { put("type", "string") }
-            putJsonObject("todos") { putJsonArray("items") {} }
+            putJsonObject("todos") {
+                put("type", "array")
+                putJsonObject("items") { put("type", "string") }
+            }
             putJsonObject("priority") { put("type", "integer") }
             putJsonObject("deadline") { put("type", "string") }
             putJsonObject("remind_lead_minutes") { put("type", "integer") }

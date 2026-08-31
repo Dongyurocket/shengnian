@@ -11,8 +11,10 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
@@ -21,10 +23,15 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material.icons.outlined.Refresh
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
@@ -38,9 +45,11 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.voiceink.app.BuildConfig
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.voiceink.app.ai.LlmProtocol
+import com.voiceink.app.update.UpdateInfo
 import com.voiceink.app.ui.theme.Accent
 import com.voiceink.app.ui.theme.Accent12
 import com.voiceink.app.ui.theme.Faint
@@ -59,6 +68,15 @@ fun SettingsScreen(
     vm: SettingsViewModel = hiltViewModel()
 ) {
     val ui by vm.ui.collectAsStateWithLifecycle()
+
+    ui.update.available?.let { info ->
+        UpdateDialog(
+            info = info,
+            onDismiss = vm::dismissUpdate,
+            onDownload = vm::downloadUpdate,
+            onOpenPage = vm::openReleasePage
+        )
+    }
 
     Column(
         modifier = Modifier
@@ -226,6 +244,11 @@ fun SettingsScreen(
 
         Spacer(Modifier.height(14.dp))
         SectionCard(title = "通用") {
+            UpdateRow(
+                state = ui.update,
+                onCheck = vm::checkForUpdates
+            )
+            Spacer(Modifier.height(12.dp))
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.fillMaxWidth()
@@ -324,6 +347,91 @@ fun SettingsScreen(
         }
         Spacer(Modifier.height(30.dp))
     }
+}
+
+@Composable
+private fun UpdateRow(
+    state: UpdateUiState,
+    onCheck: () -> Unit
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text("检查更新", fontSize = 13.5.sp, color = Ink)
+            Text(
+                state.message ?: "当前版本 v${BuildConfig.VERSION_NAME}",
+                fontSize = 10.5.sp,
+                color = if (state.message?.startsWith("发现") == true) Accent else Faint
+            )
+        }
+        if (state.checking) {
+            CircularProgressIndicator(
+                modifier = Modifier.size(21.dp),
+                color = Accent,
+                strokeWidth = 2.dp
+            )
+        } else {
+            IconButton(onClick = onCheck) {
+                Icon(
+                    imageVector = Icons.Outlined.Refresh,
+                    contentDescription = "检查更新",
+                    tint = Accent
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun UpdateDialog(
+    info: UpdateInfo,
+    onDismiss: () -> Unit,
+    onDownload: (UpdateInfo) -> Unit,
+    onOpenPage: (UpdateInfo) -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = SurfaceCard,
+        title = { Text("发现新版本 v${info.version}", style = VoiceInkTextStyles.NoteTitle) },
+        text = {
+            Column(
+                modifier = Modifier
+                    .heightIn(max = 320.dp)
+                    .verticalScroll(rememberScrollState())
+            ) {
+                Text(
+                    text = info.notes.ifBlank { "本次版本暂无更新说明。" },
+                    fontSize = 12.sp,
+                    lineHeight = 19.sp,
+                    color = Ink
+                )
+                Spacer(Modifier.height(14.dp))
+                Text(
+                    text = if (info.apkUrl != null) {
+                        "下载完成后将交给系统安装器处理。"
+                    } else {
+                        "该版本没有 APK 附件，将打开 GitHub 发布页。"
+                    },
+                    fontSize = 10.5.sp,
+                    color = Faint
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    if (info.apkUrl != null) onDownload(info) else onOpenPage(info)
+                }
+            ) {
+                Text(if (info.apkUrl != null) "下载更新" else "查看发布页")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("稍后") }
+        }
+    )
 }
 
 @Composable

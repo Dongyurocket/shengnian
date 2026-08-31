@@ -17,6 +17,7 @@
 - **本地提醒**：AlarmManager 精确闹钟（杀进程可达）、开机重排、通知内「完成 / 延期 10 分钟」
 - **洞察页**：记录条数、待办完成率、连续记录点阵、24h 记录时段分布、灵感关键词云——全部纯本地聚合
 - **隐私优先**：API Key 存 Android Keystore（AES/GCM），数据全在本地 Room；Markdown + JSON 一键导出备份
+- **检查更新**：设置页查询 GitHub 最新 Release，展示更新日志；有 APK 附件时可直接下载并交给系统安装器更新
 
 ## 界面设计
 
@@ -43,7 +44,7 @@ UI (Compose) → ViewModel (StateFlow) → 领域层 (CaptureController / AiPipe
 
 ```bash
 ./gradlew :app:assembleDebug        # 调试包
-./gradlew :app:testDebugUnitTest    # 单元测试（28 个：三协议契约 / JSON 兜底 / 关联算法）
+./gradlew :app:testDebugUnitTest    # 单元测试（35 个：三协议契约 / JSON Schema 与兜底 / 关联算法 / GitHub Release 解析与版本比较）
 ./gradlew :app:assembleRelease      # 发布包（需在 local.properties 配置签名，见下）
 ```
 
@@ -65,7 +66,7 @@ keyPassword=<...>
 |---|---|---|
 | AI 模型 | 协议三选一 + Base URL + API Key + 模型名，「测试连接」验证 | `https://api.deepseek.com` + `deepseek-v4-flash` |
 | 语义向量 | 独立开关与端点，任何 OpenAI 兼容 `/v1/embeddings` | `https://api.siliconflow.cn/v1` + `Qwen/Qwen3-Embedding-8B` |
-| 通用 | 关联发现开关、打开直进速记、默认提前提醒、重建知识网络、导出备份 | — |
+| 通用 | 关联发现开关、打开直进速记、默认提前提醒、重建知识网络、导出备份、检查更新 | — |
 
 未配置 Embedding 时自动降级为「标签 + AI 分析」关联模式，功能不退化。
 

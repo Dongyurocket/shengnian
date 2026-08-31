@@ -1,12 +1,12 @@
 package com.voiceink.app.reminder
 
-import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
-import android.graphics.drawable.Icon
+import android.os.Build
+import androidx.core.app.NotificationCompat
 import com.voiceink.app.MainActivity
 import com.voiceink.app.R
 import com.voiceink.app.data.local.entity.TodoEntity
@@ -17,7 +17,9 @@ object NotificationHelper {
 
     private fun ensureChannel(context: Context) {
         val nm = context.getSystemService(NotificationManager::class.java)
-        if (nm.getNotificationChannel(CHANNEL_ID) == null) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
+            nm.getNotificationChannel(CHANNEL_ID) == null
+        ) {
             nm.createNotificationChannel(
                 NotificationChannel(CHANNEL_ID, "待办提醒", NotificationManager.IMPORTANCE_HIGH)
             )
@@ -36,14 +38,14 @@ object NotificationHelper {
         val doneAction = actionIntent(context, todo.id, ReminderReceiver.ACTION_COMPLETE, "完成")
         val snoozeAction = actionIntent(context, todo.id, ReminderReceiver.ACTION_SNOOZE, "延期 10 分钟")
 
-        val notification = Notification.Builder(context, CHANNEL_ID)
+        val notification = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle("待办提醒")
             .setContentText(todo.content)
             .setContentIntent(openApp)
             .setAutoCancel(true)
-            .addAction(Notification.Action.Builder(null, "完成", doneAction).build())
-            .addAction(Notification.Action.Builder(null, "延期 10 分钟", snoozeAction).build())
+            .addAction(NotificationCompat.Action(R.drawable.ic_notification, "完成", doneAction))
+            .addAction(NotificationCompat.Action(R.drawable.ic_notification, "延期 10 分钟", snoozeAction))
             .build()
         nm.notify(todo.id.toInt(), notification)
     }

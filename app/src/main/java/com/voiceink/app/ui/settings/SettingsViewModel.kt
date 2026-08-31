@@ -1,6 +1,7 @@
 package com.voiceink.app.ui.settings
 
 import android.content.Context
+import android.content.Intent
 import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -15,6 +16,9 @@ import com.voiceink.app.ai.embedding.EmbeddingClient
 import com.voiceink.app.ai.pipeline.LinkScanWorker
 import com.voiceink.app.data.export.MarkdownExporter
 import com.voiceink.app.data.repo.SettingsRepository
+import com.voiceink.app.update.AppUpdater
+import com.voiceink.app.update.UpdateChecker
+import com.voiceink.app.update.UpdateInfo
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -24,12 +28,21 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+data class UpdateUiState(
+    val checking: Boolean = false,
+    val message: String? = null,
+    val available: UpdateInfo? = null,
+    val downloadQueued: Boolean = false
+)
+
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
     private val repo: SettingsRepository,
     private val embeddingClient: EmbeddingClient,
     private val gateway: LlmGateway,
     private val exporter: MarkdownExporter,
+    private val updateChecker: UpdateChecker,
+    private val appUpdater: AppUpdater,
     @ApplicationContext private val context: Context
 ) : ViewModel() {
 
@@ -49,7 +62,8 @@ class SettingsViewModel @Inject constructor(
         val exportResult: String? = null,
         val openDirectCapture: Boolean = false,
         val remindLead: String = "5",
-        val saved: Boolean = false
+        val saved: Boolean = false,
+        val update: UpdateUiState = UpdateUiState()
     )
 
     private val _ui = MutableStateFlow(UiState())
@@ -113,6 +127,96 @@ class SettingsViewModel @Inject constructor(
             repo.setOpenDirectCapture(s.openDirectCapture)
             s.remindLead.toIntOrNull()?.let { repo.setRemindLeadMinutes(it) }
             _ui.update { it.copy(saved = true) }
+        }
+    }
+
+    /** 查询 GitHub 最新稳定版；有更新时由设置页弹出更新日志 */
+    fun checkForUpdates() {
+        if (_ui.value.update.checking) return
+        viewModelScope.launch {
+            _ui.update {
+                it.copy(update = UpdateUiState(checking = true))
+            }
+            runCatching { updateChecker.check() }
+                .onSuccess { info ->
+                    _ui.update {
+                        it.copy(
+                            update = if (info == null) {
+                                UpdateUiState(message = "已是最新版本")
+                            } else {
+                                UpdateUiState(
+                                    message = "发现 v${info.version}",
+                                    available = info
+                                )
+                            }
+                        )
+                    }
+                }
+                .onFailure { error ->
+                    _ui.update {
+                        it.copy(
+                            update = UpdateUiState(
+                                message = "检查失败：${error.message?.take(60).orEmpty()}"
+                            )
+                        )
+                    }
+                }
+        }
+    }
+
+    fun dismissUpdate() {
+        _ui.update { it.copy(update = it.update.copy(available = null)) }
+    }
+
+    /** 优先下载 release APK；没有附件时打开发布页 */
+    fun downloadUpdate(info: UpdateInfo) {
+        val apkUrl = info.apkUrl
+        if (apkUrl.isNullOrBlank()) {
+            openReleasePage(info)
+            return
+        }
+        viewModelScope.launch {
+            _ui.update {
+                it.copy(update = UpdateUiState(message = "正在准备下载 v${info.version}…"))
+            }
+            runCatching { appUpdater.download(apkUrl, info.version) }
+                .onSuccess {
+                    _ui.update {
+                        it.copy(
+                            update = UpdateUiState(
+                                message = "已开始下载 v${info.version}，完成后点击通知安装",
+                                downloadQueued = true
+                            )
+                        )
+                    }
+                }
+                .onFailure { error ->
+                    _ui.update {
+                        it.copy(
+                            update = UpdateUiState(
+                                message = "下载失败：${error.message?.take(60).orEmpty()}",
+                                available = info
+                            )
+                        )
+                    }
+                }
+        }
+    }
+
+    fun openReleasePage(info: UpdateInfo) {
+        _ui.update {
+            it.copy(update = UpdateUiState(message = "已打开 v${info.version} 发布页"))
+        }
+        runCatching {
+            context.startActivity(
+                Intent(Intent.ACTION_VIEW, Uri.parse(info.pageUrl)).addFlags(
+                    Intent.FLAG_ACTIVITY_NEW_TASK
+                )
+            )
+        }.onFailure { error ->
+            _ui.update {
+                it.copy(update = UpdateUiState(message = "无法打开发布页：${error.message?.take(50).orEmpty()}"))
+            }
         }
     }
 
