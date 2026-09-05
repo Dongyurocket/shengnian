@@ -63,9 +63,91 @@ class OpenAiResponsesAdapter @Inject constructor(
         error("unreachable")
     }
 
-    private fun buildBody(endpoint: LlmEndpoint, request: LlmRequest, useJsonSchema: Boolean): JsonObject =
+    override suspend fun completeStreaming(
+        endpoint: LlmEndpoint,
+        request: LlmRequest,
+        onEvent: suspend (LlmStreamEvent) -> Unit
+    ): LlmResult {
+        val url = apiUrl(endpoint.baseUrl, "/responses")
+        val headers = mapOf(
+            "Authorization" to "Bearer ${endpoint.apiKey}",
+            "Content-Type" to "application/json"
+        )
+        var useJsonSchema = true
+        var streamEndpoint = endpoint
+        repeat(3) {
+            val text = StringBuilder()
+            var completed: JsonObject? = null
+            var jsonResult: LlmResult? = null
+            var summaryLength = 0
+            try {
+                postSse(
+                    url, headers, buildBody(streamEndpoint, request, useJsonSchema, stream = true),
+                    onConnected = { onEvent(LlmStreamEvent.Connected) },
+                    onJson = { jsonResult = parse(it) }
+                ) { event, data ->
+                    val chunk = streamJson(data)
+                    (chunk["error"] as? JsonObject)?.let { streamError(it) }
+                    val type = chunk["type"]?.jsonPrimitive?.contentOrNull ?: event
+                    when (type) {
+                        "response.output_text.delta" -> {
+                            val delta = chunk["delta"]?.jsonPrimitive?.contentOrNull.orEmpty()
+                            if (delta.isNotEmpty()) {
+                                appendStreamText(text, delta)
+                                onEvent(LlmStreamEvent.TextDelta(delta))
+                            }
+                        }
+                        "response.reasoning_summary_text.delta" -> {
+                            if (streamEndpoint.showReasoningSummary && streamEndpoint.thinkingEnabled) {
+                                val delta = chunk["delta"]?.jsonPrimitive?.contentOrNull.orEmpty()
+                                    .take((600 - summaryLength).coerceAtLeast(0))
+                                summaryLength += delta.length
+                                if (delta.isNotEmpty()) onEvent(LlmStreamEvent.ReasoningSummaryDelta(delta))
+                            }
+                        }
+                        "response.completed", "response.incomplete" -> {
+                            completed = chunk["response"]?.jsonObject
+                                ?: throw LlmException(-1, "流式响应缺少完成结果", true)
+                            return@postSse true
+                        }
+                        "response.failed", "error" -> streamError(
+                            chunk["response"]?.jsonObject?.get("error") as? JsonObject
+                        )
+                    }
+                    false
+                }
+                jsonResult?.let { return it }
+                val response = completed ?: throw LlmException(-1, "流式响应提前中断", true)
+                if (response.containsKey("output") || response.containsKey("output_text")) return parse(response)
+                return LlmResult(
+                    text.toString(),
+                    stopReason(response["status"]?.jsonPrimitive?.contentOrNull, response),
+                    usage(response)
+                )
+            } catch (e: LlmException) {
+                val msg = e.message.orEmpty().lowercase()
+                val formatError = msg.contains("json_schema") || msg.contains("json schema") ||
+                    msg.contains("text.format") || msg.contains("response_format") || msg.contains("schema")
+                when {
+                    e.httpCode == 400 && streamEndpoint.showReasoningSummary && msg.contains("summary") ->
+                        streamEndpoint = streamEndpoint.copy(showReasoningSummary = false)
+                    e.httpCode == 400 && useJsonSchema && formatError -> useJsonSchema = false
+                    else -> throw e
+                }
+            }
+        }
+        error("unreachable")
+    }
+
+    private fun buildBody(
+        endpoint: LlmEndpoint,
+        request: LlmRequest,
+        useJsonSchema: Boolean,
+        stream: Boolean = false
+    ): JsonObject =
         buildJsonObject {
             put("model", endpoint.model)
+            if (stream) put("stream", true)
             put("instructions", request.system)
             putJsonArray("input") {
                 add(buildJsonObject {
@@ -90,7 +172,10 @@ class OpenAiResponsesAdapter @Inject constructor(
                     put("effort", if (endpoint.thinkingEnabled) endpoint.thinkingEffort.wire else "none")
                 }
             } else if (endpoint.thinkingEnabled) {
-                putJsonObject("reasoning") { put("effort", endpoint.thinkingEffort.wire) }
+                putJsonObject("reasoning") {
+                    put("effort", endpoint.thinkingEffort.wire)
+                    if (stream && endpoint.showReasoningSummary) put("summary", "auto")
+                }
             }
             putJsonObject("text") {
                 putJsonObject("format") {
@@ -123,8 +208,8 @@ class OpenAiResponsesAdapter @Inject constructor(
             ?.filter { it.jsonObject["type"]?.jsonPrimitive?.contentOrNull == "output_text" }
             ?.joinToString("") { it.jsonObject["text"]?.jsonPrimitive?.content.orEmpty() }
             ?.takeIf { it.isNotBlank() }
-            ?: throw LlmException(
-                -1, "Responses 输出中未找到 output_text: ${resp.toString().take(300)}", false
+            ?: if (stopReason(status, resp) == StopReason.MAX_TOKENS) "" else throw LlmException(
+                -1, "Responses 输出中未找到 output_text", false
             )
         return LlmResult(text, stopReason(status, resp), usage(resp))
     }
@@ -138,5 +223,5 @@ class OpenAiResponsesAdapter @Inject constructor(
     }
 
     private fun usage(resp: JsonObject) =
-        resp["usage"]?.jsonObject?.get("total_tokens")?.jsonPrimitive?.intOrNull
+        (resp["usage"] as? JsonObject)?.get("total_tokens")?.jsonPrimitive?.intOrNull
 }

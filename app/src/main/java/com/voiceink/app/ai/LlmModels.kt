@@ -31,7 +31,8 @@ data class LlmEndpoint(
     val model: String,
     val protocol: LlmProtocol,
     val thinkingEnabled: Boolean = false,
-    val thinkingEffort: ThinkingEffort = ThinkingEffort.MEDIUM
+    val thinkingEffort: ThinkingEffort = ThinkingEffort.MEDIUM,
+    val showReasoningSummary: Boolean = false
 )
 
 data class EmbeddingEndpoint(

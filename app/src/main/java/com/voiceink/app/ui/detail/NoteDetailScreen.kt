@@ -57,6 +57,7 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.voiceink.app.ai.ImagePayloadEncoder
+import com.voiceink.app.ai.pipeline.AiPhase
 import com.voiceink.app.core.TimeUtils
 import com.voiceink.app.data.local.entity.NoteStatus
 import com.voiceink.app.ui.home.MetaChip
@@ -90,6 +91,7 @@ fun NoteDetailScreen(
     vm: NoteDetailViewModel = hiltViewModel()
 ) {
     val note by vm.note.collectAsStateWithLifecycle()
+    val aiProgress by vm.aiProgress.collectAsStateWithLifecycle()
     val tags by vm.tags.collectAsStateWithLifecycle()
     val todos by vm.extractedTodos.collectAsStateWithLifecycle()
     val related by vm.related.collectAsStateWithLifecycle()
@@ -232,6 +234,33 @@ fun NoteDetailScreen(
                 }
             }
 
+            // 阶段放在正文前，长笔记也能直接看到整理状态。
+            when (n.status) {
+                NoteStatus.PENDING_AI -> {
+                    StatusBar(
+                        aiProgress.phase.label,
+                        if (aiProgress.phase == AiPhase.CANCELLED) ({ vm.retry() }) else null
+                    )
+                    if (aiProgress.reasoningSummary.isNotBlank()) {
+                        Text(
+                            "推理摘要",
+                            fontSize = 11.sp,
+                            color = Muted,
+                            modifier = Modifier.padding(top = 10.dp)
+                        )
+                        Text(
+                            aiProgress.reasoningSummary,
+                            fontSize = 12.sp,
+                            lineHeight = 20.sp,
+                            color = Ink2,
+                            modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
+                        )
+                    }
+                }
+                NoteStatus.AI_FAILED -> StatusBar("整理失败，点击重试") { vm.retry() }
+                NoteStatus.READY -> Unit
+            }
+
             if (attachments.isNotEmpty()) {
                 AttachmentStrip(
                     attachments = attachments,
@@ -291,13 +320,6 @@ fun NoteDetailScreen(
                             modifier = Modifier.padding(top = if (i == 0) 0.dp else 13.dp)
                         )
                     }
-            }
-
-            // 状态：整理中 / 失败重试
-            when (n.status) {
-                NoteStatus.PENDING_AI -> StatusBar("AI 整理中…", null)
-                NoteStatus.AI_FAILED -> StatusBar("整理失败，点击重试") { vm.retry() }
-                NoteStatus.READY -> Unit
             }
 
             SourceLinksSection(

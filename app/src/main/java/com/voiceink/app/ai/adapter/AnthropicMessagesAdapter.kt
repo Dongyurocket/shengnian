@@ -33,9 +33,87 @@ class AnthropicMessagesAdapter @Inject constructor(
     override val protocol = LlmProtocol.ANTHROPIC_MESSAGES
 
     override suspend fun complete(endpoint: LlmEndpoint, request: LlmRequest): LlmResult {
-        val url = apiUrl(endpoint.baseUrl, "/messages")
-        val body = buildJsonObject {
+        val resp = post(apiUrl(endpoint.baseUrl, "/messages"), headers(endpoint), buildBody(endpoint, request))
+        return parse(resp)
+    }
+
+    override suspend fun completeStreaming(
+        endpoint: LlmEndpoint,
+        request: LlmRequest,
+        onEvent: suspend (LlmStreamEvent) -> Unit
+    ): LlmResult {
+        val text = StringBuilder()
+        var stop: String? = null
+        var inputTokens = 0
+        var outputTokens = 0
+        var jsonResult: LlmResult? = null
+        postSse(
+            apiUrl(endpoint.baseUrl, "/messages"), headers(endpoint), buildBody(endpoint, request, stream = true),
+            onConnected = { onEvent(LlmStreamEvent.Connected) },
+            onJson = { jsonResult = parse(it) }
+        ) { event, data ->
+            val chunk = streamJson(data)
+            val type = chunk["type"]?.jsonPrimitive?.contentOrNull ?: event
+            when (type) {
+                "message_start" -> {
+                    val usage = chunk["message"]?.jsonObject?.get("usage")?.jsonObject
+                    inputTokens = usage?.get("input_tokens")?.jsonPrimitive?.intOrNull ?: 0
+                    outputTokens = usage?.get("output_tokens")?.jsonPrimitive?.intOrNull ?: 0
+                }
+                "content_block_start" -> {
+                    val block = chunk["content_block"]?.jsonObject
+                    if (block?.get("type")?.jsonPrimitive?.contentOrNull == "text") {
+                        val content = block["text"]?.jsonPrimitive?.contentOrNull.orEmpty()
+                        if (content.isNotEmpty()) {
+                            appendStreamText(text, content)
+                            onEvent(LlmStreamEvent.TextDelta(content))
+                        }
+                    }
+                }
+                "content_block_delta" -> {
+                    val delta = chunk["delta"]?.jsonObject
+                    if (delta?.get("type")?.jsonPrimitive?.contentOrNull == "text_delta") {
+                        val content = delta["text"]?.jsonPrimitive?.contentOrNull.orEmpty()
+                        if (content.isNotEmpty()) {
+                            appendStreamText(text, content)
+                            onEvent(LlmStreamEvent.TextDelta(content))
+                        }
+                    }
+                    // thinking_delta 是原始思考内容，不作为推理摘要展示或持久化。
+                }
+                "message_delta" -> {
+                    stop = chunk["delta"]?.jsonObject?.get("stop_reason")?.jsonPrimitive?.contentOrNull ?: stop
+                    outputTokens = chunk["usage"]?.jsonObject?.get("output_tokens")?.jsonPrimitive?.intOrNull ?: outputTokens
+                }
+                "message_stop" -> return@postSse true
+                "error" -> streamError(chunk["error"] as? JsonObject)
+            }
+            false
+        }
+        jsonResult?.let { return it }
+        if (stop == null) throw LlmException(-1, "流式响应缺少完成原因", true)
+        val continuation = text.toString().trimStart()
+        if (continuation.isBlank() && stop != "max_tokens") throw LlmException(-1, "流式响应未包含正文", true)
+        return LlmResult(
+            text = if (!endpoint.thinkingEnabled && !continuation.startsWith("{")) "{$continuation" else continuation,
+            stopReason = when (stop) {
+                "max_tokens" -> StopReason.MAX_TOKENS
+                "end_turn", "stop_sequence" -> StopReason.COMPLETE
+                else -> StopReason.OTHER
+            },
+            usageTokens = inputTokens + outputTokens
+        )
+    }
+
+    private fun headers(endpoint: LlmEndpoint) = mapOf(
+        "x-api-key" to endpoint.apiKey,
+        "anthropic-version" to "2023-06-01",
+        "Content-Type" to "application/json"
+    )
+
+    private fun buildBody(endpoint: LlmEndpoint, request: LlmRequest, stream: Boolean = false) = buildJsonObject {
             put("model", endpoint.model)
+            if (stream) put("stream", true)
             val thinkingBudget = if (endpoint.thinkingEnabled) endpoint.thinkingEffort.budgetTokens else 0
             put("max_tokens", request.maxTokens + thinkingBudget)   // Anthropic 的 thinking budget 计入上限
             put("system", request.system)          // 顶层 system，不进 messages
@@ -79,15 +157,6 @@ class AnthropicMessagesAdapter @Inject constructor(
                 }
             }
         }
-        val resp = post(
-            url, mapOf(
-                "x-api-key" to endpoint.apiKey,
-                "anthropic-version" to "2023-06-01",
-                "Content-Type" to "application/json"
-            ), body
-        )
-        return parse(resp)
-    }
 
     private fun parse(resp: JsonObject): LlmResult {
         val partial = resp["content"]?.jsonArray

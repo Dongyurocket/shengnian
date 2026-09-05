@@ -2,6 +2,7 @@ package com.voiceink.app.ai
 
 import com.voiceink.app.ai.adapter.LlmAdapterFactory
 import com.voiceink.app.ai.adapter.LlmException
+import com.voiceink.app.ai.adapter.LlmStreamEvent
 import com.voiceink.app.data.repo.SettingsRepository
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.currentCoroutineContext
@@ -54,6 +55,26 @@ class LlmGateway @Inject constructor(
             }
         }
         throw lastError ?: error("unreachable")
+    }
+
+    /** 主整理流不做网关重试；中断交给 Worker，避免重复拼接输出和多层等待。 */
+    suspend fun completeStreaming(
+        request: LlmRequest,
+        onEvent: suspend (LlmStreamEvent) -> Unit
+    ): LlmResult {
+        val endpoint = settings.currentEndpoint()
+        require(endpoint.baseUrl.isNotBlank()) { "未配置 LLM Base URL，请到设置页填写" }
+        return try {
+            factory.create(endpoint.protocol).completeStreaming(endpoint, request) { event ->
+                if (event !is LlmStreamEvent.ReasoningSummaryDelta ||
+                    (endpoint.thinkingEnabled && endpoint.showReasoningSummary &&
+                        endpoint.protocol == LlmProtocol.OPENAI_RESPONSES)
+                ) onEvent(event)
+            }
+        } catch (e: IOException) {
+            currentCoroutineContext().ensureActive()
+            throw LlmException(-1, "流式连接中断或超时，请重试", true)
+        }
     }
 
     /** 设置页「测试连接」（§6.3）：用表单中的端点（可能未保存）发一次最小请求 */

@@ -26,6 +26,7 @@ import com.voiceink.app.data.repo.TodoRepository
 import com.voiceink.app.reminder.ReminderScheduler
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.map
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -73,11 +74,21 @@ class AiPipeline @Inject constructor(
             )
     }
 
-    suspend fun process(noteId: Long, forceNote: Boolean = false): Outcome {
+    fun observeWork(noteId: Long) = WorkManager.getInstance(context)
+        .getWorkInfosForUniqueWorkFlow("ai_process_$noteId")
+        .map { infos -> infos.firstOrNull { !it.state.isFinished } ?: infos.firstOrNull() }
+
+    suspend fun process(
+        noteId: Long,
+        forceNote: Boolean = false,
+        finalAttempt: Boolean = false,
+        onProgress: suspend (AiProgress) -> Unit = {}
+    ): Outcome {
         val note = notes.byId(noteId) ?: return Outcome.Fatal
         if (note.status != NoteStatus.PENDING_AI && note.status != NoteStatus.AI_FAILED) {
             return Outcome.Done
         }
+        onProgress(AiProgress(AiPhase.PREPARING))
         val rawContent = note.rawContent.ifBlank { note.content }
         val sourceRows = try {
             sources.refreshForNote(noteId, rawContent)
@@ -110,8 +121,16 @@ class AiPipeline @Inject constructor(
         val keepAsNote = forceNote || requiresNoteIntent(note.intentHint)
         if (!isCurrent(note, attachmentCount)) return Outcome.Done
 
+        suspend fun retryableOutcome(): Outcome {
+            if (!isCurrent(note, attachmentCount)) return Outcome.Done
+            if (!finalAttempt) return Outcome.Retryable
+            return if (notes.markFailedIfCurrent(note)) Outcome.Fatal else Outcome.Done
+        }
+
+        onProgress(AiProgress(AiPhase.CONNECTING))
+        val streamProgress = AiStreamProgress(onProgress)
         val result = try {
-            gateway.complete(
+            gateway.completeStreaming(
                 LlmRequest(
                     system = buildString {
                         append(Prompts.INTENT_AND_ORGANIZE)
@@ -143,25 +162,27 @@ class AiPipeline @Inject constructor(
                     },
                     jsonSchemaName = "intent",
                     images = imagePayloads
-                )
+                ),
+                onEvent = streamProgress::onEvent
             )
         } catch (e: CancellationException) {
             throw e
         } catch (e: LlmException) {
+            if (e.retriable) return retryableOutcome()
             if (!notes.markFailedIfCurrent(note)) return Outcome.Done
-            return if (e.retriable) Outcome.Retryable else Outcome.Fatal
+            return Outcome.Fatal
         } catch (e: Exception) {
             if (!notes.markFailedIfCurrent(note)) return Outcome.Done
             return Outcome.Fatal
         }
 
-        if (result.stopReason == StopReason.MAX_TOKENS) {
-            // 截断的输出大概率不是完整 JSON；交给 WorkManager 重试，避免写入半截结果。
-            if (notes.markFailedIfCurrent(note)) return Outcome.Retryable
-            return Outcome.Done
+        if (result.stopReason == StopReason.MAX_TOKENS) return retryableOutcome()
+        if (result.stopReason != StopReason.COMPLETE) {
+            return if (notes.markFailedIfCurrent(note)) Outcome.Fatal else Outcome.Done
         }
 
         if (!isCurrent(note, attachmentCount)) return Outcome.Done
+        onProgress(AiProgress(AiPhase.SAVING))
 
         return when (val parsed = JsonExtractor.extractIntent(result.text)) {
             is ParsedIntent.Todo -> {
@@ -234,9 +255,7 @@ class AiPipeline @Inject constructor(
                 }
                 Outcome.Done
             }
-            ParsedIntent.Unparseable -> {
-                if (notes.markFailedIfCurrent(note)) Outcome.Retryable else Outcome.Done
-            }
+            ParsedIntent.Unparseable -> retryableOutcome()
         }
     }
 

@@ -63,13 +63,84 @@ class OpenAiChatAdapter @Inject constructor(
         error("unreachable")
     }
 
+    override suspend fun completeStreaming(
+        endpoint: LlmEndpoint,
+        request: LlmRequest,
+        onEvent: suspend (LlmStreamEvent) -> Unit
+    ): LlmResult {
+        val url = apiUrl(endpoint.baseUrl, "/chat/completions")
+        val headers = mapOf(
+            "Authorization" to "Bearer ${endpoint.apiKey}",
+            "Content-Type" to "application/json"
+        )
+        var useCompletionTokens = false
+        var useResponseFormat = true
+
+        repeat(3) {
+            val text = StringBuilder()
+            var finish: String? = null
+            var usageTokens: Int? = null
+            var jsonResult: LlmResult? = null
+            try {
+                postSse(
+                    url,
+                    headers,
+                    buildBody(endpoint, request, useCompletionTokens, useResponseFormat, stream = true),
+                    onConnected = { onEvent(LlmStreamEvent.Connected) },
+                    onJson = { jsonResult = parse(it) }
+                ) { _, data ->
+                    if (data == "[DONE]") return@postSse true
+                    val chunk = streamJson(data)
+                    (chunk["error"] as? JsonObject)?.let { streamError(it) }
+                    val choice = chunk["choices"]?.jsonArray?.firstOrNull()?.jsonObject
+                    val delta = choice?.get("delta") as? JsonObject
+                    val content = delta?.get("content")?.jsonPrimitive?.contentOrNull.orEmpty()
+                    if (content.isNotEmpty()) {
+                        appendStreamText(text, content)
+                        onEvent(LlmStreamEvent.TextDelta(content))
+                    }
+                    finish = choice?.get("finish_reason")?.jsonPrimitive?.contentOrNull ?: finish
+                    usageTokens = (chunk["usage"] as? JsonObject)?.get("total_tokens")
+                        ?.jsonPrimitive?.intOrNull ?: usageTokens
+                    false
+                }
+                jsonResult?.let { return it }
+                if (finish == null) throw LlmException(-1, "流式响应缺少完成原因", true)
+                if (text.isEmpty() && finish != "length") {
+                    throw LlmException(-1, "流式响应未包含正文", retriable = true)
+                }
+                return LlmResult(
+                    text = text.toString(),
+                    stopReason = when (finish) {
+                        "length" -> StopReason.MAX_TOKENS
+                        "stop" -> StopReason.COMPLETE
+                        else -> StopReason.OTHER
+                    },
+                    usageTokens = usageTokens
+                )
+            } catch (e: LlmException) {
+                val msg = e.message.orEmpty()
+                when {
+                    e.httpCode == 400 && !useCompletionTokens &&
+                        msg.contains("max_completion_tokens") -> useCompletionTokens = true
+                    e.httpCode == 400 && useResponseFormat &&
+                        (msg.contains("response_format") || msg.contains("json_object")) -> useResponseFormat = false
+                    else -> throw e
+                }
+            }
+        }
+        error("unreachable")
+    }
+
     private fun buildBody(
         endpoint: LlmEndpoint,
         request: LlmRequest,
         useCompletionTokens: Boolean,
-        useResponseFormat: Boolean
+        useResponseFormat: Boolean,
+        stream: Boolean = false
     ): JsonObject = buildJsonObject {
         put("model", endpoint.model)
+        if (stream) put("stream", true)
         putJsonArray("messages") {
             add(buildJsonObject {
                 put("role", "system")

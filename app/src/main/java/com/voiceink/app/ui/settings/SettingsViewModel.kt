@@ -56,6 +56,7 @@ class SettingsViewModel @Inject constructor(
         val apiKey: String = "",
         val thinkingEnabled: Boolean = false,
         val thinkingEffort: ThinkingEffort = ThinkingEffort.MEDIUM,
+        val showReasoningSummary: Boolean = false,
         val llmTestResult: String? = null,
         val embedEnabled: Boolean = false,
         val embedBaseUrl: String = "",
@@ -91,6 +92,7 @@ class SettingsViewModel @Inject constructor(
                 apiKey = repo.savedLlmApiKey(),
                 thinkingEnabled = cfg.thinkingEnabled,
                 thinkingEffort = cfg.thinkingEffort,
+                showReasoningSummary = cfg.showReasoningSummary,
                 embedEnabled = embed.enabled,
                 embedBaseUrl = embed.baseUrl,
                 embedModel = embed.model,
@@ -185,7 +187,10 @@ class SettingsViewModel @Inject constructor(
     fun save() {
         val s = _ui.value
         viewModelScope.launch {
-            repo.saveLlm(s.protocol, s.baseUrl, s.model, s.apiKey, s.thinkingEnabled, s.thinkingEffort)
+            repo.saveLlm(
+                s.protocol, s.baseUrl, s.model, s.apiKey, s.thinkingEnabled,
+                s.thinkingEffort, s.showReasoningSummary
+            )
             repo.saveEmbedding(s.embedEnabled, s.embedBaseUrl, s.embedModel, s.embedApiKey)
             repo.setLinkDiscoveryEnabled(s.linkEnabled)
             repo.setOpenDirectCapture(s.openDirectCapture)

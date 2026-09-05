@@ -197,6 +197,17 @@ fun SettingsScreen(
                     }
                 }
             }
+            if (ui.thinkingEnabled && ui.protocol == LlmProtocol.OPENAI_RESPONSES) {
+                Spacer(Modifier.height(8.dp))
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                    Text("显示推理摘要", fontSize = 13.5.sp, color = Ink, modifier = Modifier.weight(1f))
+                    Switch(
+                        checked = ui.showReasoningSummary,
+                        onCheckedChange = { value -> vm.update { it.copy(showReasoningSummary = value) } },
+                        colors = SwitchDefaults.colors(checkedTrackColor = Accent)
+                    )
+                }
+            }
             Spacer(Modifier.height(12.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(

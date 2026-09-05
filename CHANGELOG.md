@@ -2,6 +2,22 @@
 
 本项目遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## [0.6.0] - 2026-09-05
+
+### 新增
+- AI 整理主请求改为 SSE 流式接收，覆盖 OpenAI Chat Completions、OpenAI Responses 与 Anthropic Messages；持续收到流数据时会刷新读取窗口，降低弱网和模型思考期间被误判为超时的概率
+- 笔记详情新增整理阶段状态：正在准备、正在连接、模型正在分析、正在生成整理结果、正在保存，以及自动重试等待状态
+- OpenAI Responses 在用户启用模型思考后可选择显示提供商明确返回的推理摘要；默认关闭，仅保留在任务内存中，任务结束立即清除
+
+### 修复
+- 流式连接中断、输出截断或 JSON 不完整时不再写入半截整理结果；仅在收到协议完成标记和完整 JSON 后才落库
+- 可重试网络错误不再提前将笔记标为“整理失败”；WorkManager 重试耗尽后才显示手动重试入口
+- 取消或替换整理任务时会取消底层 HTTP 连接，避免旧请求继续占用网络或覆盖新编辑
+
+### 工程与验证
+- 新增 38 个测试，总计 121 个 JVM 单元测试：覆盖 SSE 心跳、协议完成事件、断流、取消、三协议回退与多模态兼容、推理摘要隐私边界、重试状态和落库保护
+- 已通过 `:app:testDebugUnitTest`、`:app:assembleDebug`、`:app:assembleRelease` 与 `:app:lintDebug`
+
 ## [0.5.5] - 2026-09-01
 
 ### 改进

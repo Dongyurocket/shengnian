@@ -8,6 +8,12 @@ import com.voiceink.app.ai.diagram.DiagramGenerator
 import com.voiceink.app.ai.diagram.DiagramKind
 import com.voiceink.app.ai.ImagePayloadEncoder
 import com.voiceink.app.ai.pipeline.AiPipeline
+import com.voiceink.app.ai.pipeline.AiProgress
+import com.voiceink.app.ai.pipeline.AiSummaryStore
+import com.voiceink.app.ai.pipeline.progressForWork
+import com.voiceink.app.ai.LlmProtocol
+import com.voiceink.app.data.repo.SettingsRepository
+import kotlinx.coroutines.flow.combine
 import com.voiceink.app.ai.pipeline.requiresNoteIntent
 import com.voiceink.app.data.local.dao.DiagramDao
 import com.voiceink.app.data.local.dao.LinkDao
@@ -39,10 +45,21 @@ class NoteDetailViewModel @Inject constructor(
     private val attachmentRepo: NoteAttachmentRepository,
     private val sourceRepo: NoteSourceRepository,
     private val diagramDao: DiagramDao,
-    private val diagramGenerator: DiagramGenerator
+    private val diagramGenerator: DiagramGenerator,
+    summaries: AiSummaryStore,
+    settings: SettingsRepository
 ) : ViewModel() {
 
     private val noteId: Long = checkNotNull(savedStateHandle["noteId"])
+
+    val aiProgress = combine(
+        pipeline.observeWork(noteId), summaries.summaries, settings.llmConfig
+    ) { info, currentSummaries, config ->
+        val summary = if (config.thinkingEnabled && config.showReasoningSummary &&
+            config.protocol == LlmProtocol.OPENAI_RESPONSES
+        ) currentSummaries[info?.id?.toString()].orEmpty() else ""
+        progressForWork(info, summary)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), AiProgress())
 
     val note: StateFlow<NoteEntity?> = notes.observeById(noteId)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)

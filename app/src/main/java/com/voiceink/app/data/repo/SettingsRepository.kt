@@ -37,7 +37,8 @@ class SettingsRepository @Inject constructor(
         val baseUrl: String = "",
         val model: String = "",
         val thinkingEnabled: Boolean = false,
-        val thinkingEffort: ThinkingEffort = ThinkingEffort.MEDIUM
+        val thinkingEffort: ThinkingEffort = ThinkingEffort.MEDIUM,
+        val showReasoningSummary: Boolean = false
     )
 
     private object Keys {
@@ -46,6 +47,7 @@ class SettingsRepository @Inject constructor(
         val MODEL = stringPreferencesKey("llm_model")
         val THINKING_ENABLED = booleanPreferencesKey("llm_thinking_enabled")
         val THINKING_EFFORT = stringPreferencesKey("llm_thinking_effort")
+        val SHOW_REASONING_SUMMARY = booleanPreferencesKey("llm_show_reasoning_summary")
         val EMBED_ENABLED = booleanPreferencesKey("embed_enabled")
         val EMBED_BASE_URL = stringPreferencesKey("embed_base_url")
         val EMBED_MODEL = stringPreferencesKey("embed_model")
@@ -65,7 +67,8 @@ class SettingsRepository @Inject constructor(
             thinkingEnabled = p[Keys.THINKING_ENABLED] ?: false,
             thinkingEffort = p[Keys.THINKING_EFFORT]
                 ?.let { value -> ThinkingEffort.entries.firstOrNull { it.name == value } }
-                ?: ThinkingEffort.MEDIUM
+                ?: ThinkingEffort.MEDIUM,
+            showReasoningSummary = p[Keys.SHOW_REASONING_SUMMARY] ?: false
         )
     }
 
@@ -75,7 +78,8 @@ class SettingsRepository @Inject constructor(
         model: String,
         apiKey: String,
         thinkingEnabled: Boolean = false,
-        thinkingEffort: ThinkingEffort = ThinkingEffort.MEDIUM
+        thinkingEffort: ThinkingEffort = ThinkingEffort.MEDIUM,
+        showReasoningSummary: Boolean = false
     ) {
         context.settingsStore.edit { p ->
             p[Keys.PROTOCOL] = protocol.name
@@ -83,6 +87,7 @@ class SettingsRepository @Inject constructor(
             p[Keys.MODEL] = model.trim()
             p[Keys.THINKING_ENABLED] = thinkingEnabled
             p[Keys.THINKING_EFFORT] = thinkingEffort.name
+            p[Keys.SHOW_REASONING_SUMMARY] = showReasoningSummary
         }
         if (apiKey.isNotBlank()) llmKeyStore.save(apiKey.trim())
     }
@@ -98,7 +103,8 @@ class SettingsRepository @Inject constructor(
             model = cfg.model,
             protocol = cfg.protocol,
             thinkingEnabled = cfg.thinkingEnabled,
-            thinkingEffort = cfg.thinkingEffort
+            thinkingEffort = cfg.thinkingEffort,
+            showReasoningSummary = cfg.showReasoningSummary
         )
     }
 
